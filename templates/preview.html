@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pré-visualização da Questão</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        :root {
+            --primary: #7c3aed;
+            --primary-light: #a78bfa;
+            --bg-body: #0b0f19;
+            --bg-card: rgba(22, 27, 38, 0.95);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --text-main: #f1f5f9;
+            --text-muted: #94a3b8;
+            --font-inter: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: var(--font-inter);
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            padding: 30px 20px;
+        }
+
+        .preview-container {
+            width: 100%;
+            max-width: 900px;
+        }
+
+        .preview-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .preview-header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .preview-header h1 {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--primary-light);
+        }
+
+        .preview-header .q-number {
+            background: var(--primary);
+            color: white;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 15px;
+        }
+
+        .btn-close-preview {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid var(--border-color);
+            color: var(--text-muted);
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-family: var(--font-inter);
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+
+        .btn-close-preview:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+
+        .preview-card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .preview-badge-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .preview-badge {
+            font-size: 11px;
+            font-weight: 700;
+            padding: 5px 12px;
+            border-radius: 20px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .badge-banca { background-color: rgba(124, 58, 237, 0.12); color: #a78bfa; border-color: rgba(124, 58, 237, 0.2); }
+        .badge-instituicao { background-color: rgba(59, 130, 246, 0.12); color: #60a5fa; border-color: rgba(59, 130, 246, 0.2); }
+        .badge-cargo { background-color: rgba(236, 72, 153, 0.12); color: #f472b6; border-color: rgba(236, 72, 153, 0.2); }
+        .badge-ano { background-color: rgba(245, 158, 11, 0.12); color: #fbbf24; border-color: rgba(245, 158, 11, 0.2); }
+        .badge-disciplina { background-color: rgba(16, 185, 129, 0.12); color: #34d399; border-color: rgba(16, 185, 129, 0.2); }
+        .badge-assunto { background-color: rgba(107, 114, 128, 0.2); color: #d1d5db; border-color: rgba(107, 114, 128, 0.3); }
+        .badge-dificuldade { background-color: rgba(239, 68, 68, 0.12); color: #f87171; border-color: rgba(239, 68, 68, 0.2); }
+
+        .preview-section-title {
+            font-size: 11px;
+            font-weight: 800;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 12px;
+        }
+
+        .preview-texto-associado {
+            background-color: rgba(255, 255, 255, 0.02);
+            border-left: 3px solid var(--primary);
+            border-radius: 0 10px 10px 0;
+            padding: 18px;
+            font-size: 15px;
+            line-height: 1.7;
+        }
+
+        .preview-enunciado {
+            font-size: 16px;
+            line-height: 1.7;
+            color: var(--text-main);
+        }
+
+        .preview-image-wrapper {
+            margin-top: 15px;
+            display: flex;
+            justify-content: center;
+            background-color: rgba(0, 0, 0, 0.2);
+            padding: 12px;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+        }
+
+        .preview-image-enunciado {
+            max-width: 100%;
+            max-height: 400px;
+            border-radius: 6px;
+            object-fit: contain;
+        }
+
+        .preview-alternatives {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .preview-alternative-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            padding: 14px 18px;
+            background-color: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            transition: all 0.2s;
+        }
+
+        .preview-alternative-item:hover {
+            background-color: rgba(255, 255, 255, 0.04);
+            border-color: rgba(255, 255, 255, 0.12);
+        }
+
+        .preview-alternative-item.correct {
+            background-color: rgba(34, 197, 94, 0.08);
+            border-color: rgba(34, 197, 94, 0.25);
+        }
+
+        .preview-alt-badge {
+            min-width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            background-color: rgba(255, 255, 255, 0.06);
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 13px;
+            flex-shrink: 0;
+        }
+
+        .preview-alternative-item.correct .preview-alt-badge {
+            background-color: rgba(34, 197, 94, 0.2);
+            color: #22c55e;
+        }
+
+        .preview-alt-content-body {
+            flex-grow: 1;
+            font-size: 15px;
+            line-height: 1.6;
+        }
+
+        .preview-alt-image-wrapper {
+            margin-top: 10px;
+            display: flex;
+            justify-content: flex-start;
+        }
+
+        .preview-image-alt {
+            max-width: 100%;
+            max-height: 250px;
+            border-radius: 6px;
+            object-fit: contain;
+            border: 1px solid var(--border-color);
+        }
+
+        .preview-correct-icon {
+            color: #22c55e;
+            font-size: 18px;
+            margin-top: 6px;
+            flex-shrink: 0;
+        }
+
+        .preview-comentario-box {
+            background-color: rgba(124, 58, 237, 0.06);
+            border: 1px solid rgba(124, 58, 237, 0.15);
+            border-radius: 10px;
+            padding: 18px;
+        }
+
+        .preview-comentario-box.empty-comentario {
+            background-color: rgba(255, 255, 255, 0.02);
+            border-color: var(--border-color);
+        }
+
+        .preview-comentario-title {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--primary-light);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 10px;
+        }
+
+        .preview-html-content {
+            font-size: 15px;
+            line-height: 1.7;
+        }
+
+        .preview-html-content table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0;
+            font-size: 14px;
+        }
+
+        .preview-html-content th {
+            background: rgba(124, 58, 237, 0.15);
+            padding: 8px 12px;
+            text-align: left;
+            border: 1px solid var(--border-color);
+            font-weight: 700;
+        }
+
+        .preview-html-content td {
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+        }
+
+        .no-question {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-muted);
+        }
+
+        .no-question i {
+            font-size: 48px;
+            margin-bottom: 15px;
+            color: var(--primary);
+        }
+
+        @media print {
+            body { background: white; color: black; padding: 15px; }
+            .preview-card { border: 1px solid #ccc; background: white; }
+            .btn-close-preview { display: none; }
+            .preview-header { border-bottom-color: #ccc; }
+            .preview-badge { border: 1px solid #ccc; }
+            .preview-alternative-item { border: 1px solid #ccc; background: #f9f9f9; }
+            .preview-texto-associado { border-left-color: var(--primary); background: #f5f5f5; }
+        }
+    </style>
+</head>
+<body>
+    <div class="preview-container">
+        <div class="preview-header">
+            <div class="preview-header-left">
+                <span class="q-number" id="header-q-num">?</span>
+                <h1>Pré-visualização da Questão</h1>
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <button class="btn-close-preview" onclick="window.print()">
+                    <i class="fa-solid fa-print"></i> Imprimir
+                </button>
+                <button class="btn-close-preview" onclick="window.close()">
+                    <i class="fa-solid fa-xmark"></i> Fechar
+                </button>
+            </div>
+        </div>
+
+        <div id="preview-content">
+            <div class="no-question">
+                <i class="fa-solid fa-circle-question"></i>
+                <p>Nenhuma questão para visualizar.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function getQueryParam(name) {
+            const params = new URLSearchParams(window.location.search);
+            return params.get(name);
+        }
+
+        function renderPreview() {
+            const dataStr = getQueryParam('data');
+            if (!dataStr) return;
+
+            try {
+                const q = JSON.parse(decodeURIComponent(dataStr));
+                document.getElementById('header-q-num').textContent = q.Numero || '?';
+                document.title = `Questão ${q.Numero || ''} - Pré-visualização`;
+
+                const metaStr = getQueryParam('meta');
+                const meta = metaStr ? JSON.parse(decodeURIComponent(metaStr)) : {};
+
+                const banca = meta.Banca || q.Banca || "";
+                const instituicao = meta.Instituicao || q.Instituicao || "";
+                const cargo = meta.Cargo || q.Cargo || "";
+                const ano = meta.Ano || q.Ano || "";
+                const carreira = meta.Carreira || q.Carreira || "";
+                const formacao = meta.Formacao || q.Formacao || "";
+                const escolaridade = meta.Escolaridade || q.Escolaridade || "";
+                const dificuldade = meta.Dificuldade || q.Dificuldade || "";
+
+                let badgesHtml = "";
+                if (banca) badgesHtml += `<span class="preview-badge badge-banca"><i class="fa-solid fa-building-columns"></i> ${banca}</span>`;
+                if (instituicao) badgesHtml += `<span class="preview-badge badge-instituicao"><i class="fa-solid fa-university"></i> ${instituicao}</span>`;
+                if (cargo) badgesHtml += `<span class="preview-badge badge-cargo"><i class="fa-solid fa-briefcase"></i> ${cargo}</span>`;
+                if (ano) badgesHtml += `<span class="preview-badge badge-ano"><i class="fa-solid fa-calendar"></i> ${ano}</span>`;
+                if (q.Disciplina) badgesHtml += `<span class="preview-badge badge-disciplina"><i class="fa-solid fa-graduation-cap"></i> ${q.Disciplina}</span>`;
+                if (q.Assunto) badgesHtml += `<span class="preview-badge badge-assunto"><i class="fa-solid fa-tag"></i> ${q.Assunto}</span>`;
+                if (dificuldade) badgesHtml += `<span class="preview-badge badge-dificuldade"><i class="fa-solid fa-gauge-simple-high"></i> ${dificuldade}</span>`;
+
+                let textoAssociadoHtml = "";
+                if (q.Texto_Associado && q.Texto_Associado.trim()) {
+                    textoAssociadoHtml = `
+                        <div class="preview-texto-associado">
+                            <div class="preview-section-title"><i class="fa-solid fa-file-lines"></i> Texto Associado</div>
+                            <div class="preview-html-content">${q.Texto_Associado}</div>
+                        </div>
+                    `;
+                }
+
+                let enunciadoImagemHtml = "";
+                if (q.Enunciado_Imagem) {
+                    enunciadoImagemHtml = `
+                        <div class="preview-image-wrapper">
+                            <img src="${q.Enunciado_Imagem}" class="preview-image-enunciado" alt="Imagem do Enunciado">
+                        </div>
+                    `;
+                }
+
+                const alternativas = [
+                    { letra: 'A', texto: q.Opcao_A, imagem: q.Opcao_A_Imagem },
+                    { letra: 'B', texto: q.Opcao_B, imagem: q.Opcao_B_Imagem },
+                    { letra: 'C', texto: q.Opcao_C, imagem: q.Opcao_C_Imagem },
+                    { letra: 'D', texto: q.Opcao_D, imagem: q.Opcao_D_Imagem },
+                    { letra: 'E', texto: q.Opcao_E, imagem: q.Opcao_E_Imagem }
+                ];
+
+                let alternativesHtml = "";
+                alternativas.forEach(alt => {
+                    if (alt.letra === 'E' && !alt.texto && !alt.imagem) return;
+                    const isCorrect = q.Gabarito === alt.letra;
+                    const correctClass = isCorrect ? 'correct' : '';
+                    const iconHtml = isCorrect ? `<i class="fa-solid fa-circle-check preview-correct-icon"></i>` : '';
+
+                    let altImageHtml = "";
+                    if (alt.imagem) {
+                        altImageHtml = `<div class="preview-alt-image-wrapper"><img src="${alt.imagem}" class="preview-image-alt" alt="Imagem Alternativa ${alt.letra}"></div>`;
+                    }
+
+                    alternativesHtml += `
+                        <div class="preview-alternative-item ${correctClass}">
+                            <span class="preview-alt-badge">${alt.letra}</span>
+                            <div class="preview-alt-content-body">
+                                <div class="preview-html-content">${alt.texto || ''}</div>
+                                ${altImageHtml}
+                            </div>
+                            ${iconHtml}
+                        </div>
+                    `;
+                });
+
+                let comentarioHtml = "";
+                if (q.Comentario && q.Comentario.trim()) {
+                    comentarioHtml = `
+                        <div class="preview-comentario-box">
+                            <div class="preview-comentario-title">
+                                <i class="fa-solid fa-robot"></i> Explicação da Questão
+                            </div>
+                            <div class="preview-html-content">${q.Comentario}</div>
+                        </div>
+                    `;
+                }
+
+                document.getElementById('preview-content').innerHTML = `
+                    <div class="preview-card">
+                        <div class="preview-badge-row">${badgesHtml}</div>
+                        ${textoAssociadoHtml}
+                        <div class="preview-enunciado">
+                            <div class="preview-section-title" style="margin-bottom: 10px;"><i class="fa-solid fa-question"></i> Questão ${q.Numero}</div>
+                            <div class="preview-html-content">${q.Enunciado || ''}</div>
+                            ${enunciadoImagemHtml}
+                        </div>
+                        <div class="preview-alternatives">${alternativesHtml}</div>
+                        ${comentarioHtml}
+                    </div>
+                `;
+            } catch (e) {
+                console.error("Erro ao decodificar dados da questão:", e);
+            }
+        }
+
+        renderPreview();
+    </script>
+</body>
+</html>

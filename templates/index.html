@@ -1,0 +1,3349 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Extrator de Questões Pomaroli</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome para Ícones -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            /* Design System - HSL Tailored Cores Premium */
+            --primary: #7c3aed;
+            --primary-hover: #6d28d9;
+            --bg-body: #0b0f19; /* Fundo Cósmico Escuro Moderno */
+            --bg-card: rgba(22, 27, 38, 0.75); /* Efeito de Vidro */
+            --border-color: rgba(255, 255, 255, 0.08);
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+            
+            --success: #10b981;
+            --error: #ef4444;
+            --warning: #f59e0b;
+            
+            --font-outfit: 'Outfit', 'Inter', -apple-system, sans-serif;
+            --font-inter: 'Inter', -apple-system, sans-serif;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            --shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+            --shadow-lg: 0 20px 40px rgba(0, 0, 0, 0.6);
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-body);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(124, 58, 237, 0.12) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(59, 130, 246, 0.1) 0px, transparent 50%);
+            background-attachment: fixed;
+            color: var(--text-main);
+            font-family: var(--font-inter);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+        }
+
+        header {
+            background-color: rgba(11, 15, 25, 0.8);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--border-color);
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-family: var(--font-outfit);
+            font-size: 22px;
+            font-weight: 800;
+            color: #ffffff;
+            letter-spacing: -0.5px;
+        }
+
+        .header-logo i {
+            color: var(--primary);
+            font-size: 24px;
+            animation: pulse-gear 4s infinite linear;
+        }
+
+        @keyframes pulse-gear {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .header-tag {
+            background: linear-gradient(135deg, var(--primary) 0%, #3b82f6 100%);
+            color: #ffffff;
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            padding: 4px 10px;
+            border-radius: 12px;
+            letter-spacing: 0.5px;
+            box-shadow: 0 4px 10px rgba(124, 58, 237, 0.2);
+        }
+
+        /* Container Principal */
+        .main-container {
+            max-width: 1500px;
+            width: 95%;
+            margin: 30px auto;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+            box-sizing: border-box;
+        }
+
+        /* Área de Upload (Drag & Drop) */
+        .upload-section {
+            background-color: var(--bg-card);
+            border: 2px dashed rgba(124, 58, 237, 0.3);
+            border-radius: 16px;
+            padding: 40px 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: var(--transition);
+            backdrop-filter: blur(12px);
+            box-shadow: var(--shadow);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .upload-section:hover, .upload-section.dragover {
+            border-color: var(--primary);
+            background-color: rgba(22, 27, 38, 0.9);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .upload-icon {
+            font-size: 48px;
+            color: var(--primary);
+            margin-bottom: 15px;
+            transition: var(--transition);
+        }
+
+        .upload-section:hover .upload-icon {
+            transform: translateY(-5px) scale(1.05);
+            color: #8b5cf6;
+        }
+
+        .upload-section h2 {
+            margin: 0 0 8px 0;
+            font-family: var(--font-outfit);
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        .upload-section p {
+            margin: 0;
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+
+        .upload-input {
+            display: block;
+        }
+
+        /* Split View - Área de Trabalho */
+        .workspace-grid {
+            display: grid;
+            grid-template-columns: 6.2fr 3.8fr;
+            gap: 25px;
+            align-items: stretch;
+            display: none; /* Exibido após upload */
+            overflow: hidden;
+        }
+
+        @media (max-width: 1024px) {
+            .workspace-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .panel-card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            min-width: 0;
+            overflow: hidden;
+            padding: 25px;
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(12px);
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 15px;
+        }
+
+        .panel-title {
+            margin: 0;
+            font-family: var(--font-outfit);
+            font-size: 18px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .panel-title i {
+            color: var(--primary);
+        }
+
+        /* Painel da Esquerda: Lista e Editor de Questões */
+        .questions-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            max-height: 550px;
+            overflow-y: auto;
+            padding-right: 5px;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .question-item {
+            background-color: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 15px;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: flex-start;
+            gap: 15px;
+        }
+
+        .question-item:hover, .question-item.active {
+            background-color: rgba(124, 58, 237, 0.08);
+            border-color: rgba(124, 58, 237, 0.4);
+        }
+
+        .q-badge {
+            background-color: var(--primary);
+            color: #ffffff;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 13px;
+            flex-shrink: 0;
+            box-shadow: 0 4px 8px rgba(124, 58, 237, 0.3);
+        }
+
+        .q-preview {
+            flex-grow: 1;
+        }
+
+        .q-text-prev {
+            font-size: 13.5px;
+            font-weight: 500;
+            margin: 0 0 6px 0;
+            line-height: 1.4;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .q-meta-prev {
+            font-size: 11px;
+            color: var(--text-muted);
+            display: flex;
+            gap: 15px;
+            font-weight: 600;
+        }
+
+        .q-select-checkbox {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            accent-color: var(--primary);
+        }
+
+        .question-item {
+            position: relative;
+        }
+
+        .question-item.selected {
+            background-color: rgba(124, 58, 237, 0.15);
+            border-color: rgba(124, 58, 237, 0.5);
+        }
+
+        .select-all-bar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 15px;
+            margin-bottom: 10px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        .select-all-bar input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+            accent-color: var(--primary);
+        }
+
+        .select-all-bar .selected-count {
+            margin-left: auto;
+            color: var(--primary-light);
+            font-weight: 700;
+        }
+
+        .q-meta-prev span i {
+            margin-right: 4px;
+        }
+
+        /* Editor Modal/Panel */
+        .editor-form {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-top: 20px;
+            border-top: 1px dashed var(--border-color);
+            padding-top: 20px;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .form-row-4 {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            min-width: 0;
+        }
+        @media (max-width: 1200px) {
+            .form-row-4 {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            min-width: 0;
+            overflow: hidden;
+        }
+
+        .form-group.full {
+            grid-column: span 2;
+        }
+
+        .form-group label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .form-group input, .form-group textarea, .form-group select {
+            background-color: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 10px 12px;
+            color: var(--text-main);
+            font-family: var(--font-inter);
+            font-size: 13.5px;
+            outline: none;
+            transition: var(--transition);
+        }
+
+        .form-group select option {
+            background-color: #111520; /* Fundo escuro condizente com o tema */
+            color: #f3f4f6; /* Texto claro de alto contraste */
+        }
+
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .form-group input:focus, .form-group textarea:focus, .form-group select:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15);
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+
+        .alternatives-editor {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .alt-input-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .alt-badge {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background-color: rgba(255, 255, 255, 0.05);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 11px;
+            color: var(--text-muted);
+            border: 1px solid var(--border-color);
+            flex-shrink: 0;
+        }
+
+        .alt-input-group input {
+            flex-grow: 1;
+        }
+
+        /* Painel da Direita: Gabaritos e Ações */
+        .gabarito-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+            max-height: 240px;
+            overflow-y: auto;
+            padding: 10px 5px;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            background-color: rgba(255, 255, 255, 0.01);
+            margin-bottom: 20px;
+        }
+
+        .gab-row {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+            background-color: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 8px 4px;
+        }
+
+        .gab-number {
+            font-size: 11.5px;
+            font-weight: 700;
+            color: var(--text-muted);
+        }
+
+        .gab-select-btn {
+            background-color: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            font-weight: 700;
+            font-size: 13px;
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .gab-select-btn:hover {
+            border-color: var(--primary);
+            background-color: rgba(124, 58, 237, 0.1);
+        }
+
+        .gab-select-btn.selected {
+            background-color: var(--primary);
+            border-color: var(--primary);
+            color: #ffffff;
+            box-shadow: 0 2px 6px rgba(124, 58, 237, 0.3);
+        }
+
+        .gab-select-btn.gab-cancel-btn {
+            color: var(--error);
+            border-color: rgba(239, 68, 68, 0.2);
+        }
+        .gab-select-btn.gab-cancel-btn:hover {
+            border-color: var(--error);
+            background-color: rgba(239, 68, 68, 0.1);
+        }
+        .gab-select-btn.selected.gab-cancel-btn {
+            background-color: var(--error) !important;
+            border-color: var(--error) !important;
+            color: #ffffff !important;
+            box-shadow: 0 2px 6px rgba(239, 68, 68, 0.3) !important;
+        }
+
+        /* Ações e Integração Gemini */
+        .actions-card {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .gemini-upload-box {
+            border: 1px dashed rgba(16, 185, 129, 0.3);
+            border-radius: 12px;
+            padding: 15px;
+            text-align: center;
+            cursor: pointer;
+            background-color: rgba(16, 185, 129, 0.02);
+            transition: var(--transition);
+        }
+
+        .gemini-upload-box:hover {
+            border-color: var(--success);
+            background-color: rgba(16, 185, 129, 0.05);
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            font-family: var(--font-outfit);
+            font-size: 14.5px;
+            font-weight: 700;
+            padding: 12px 24px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            transition: var(--transition);
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary) 0%, #8b5cf6 100%);
+            color: #ffffff;
+            box-shadow: 0 4px 15px rgba(124, 58, 237, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(124, 58, 237, 0.45);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
+            color: #ffffff;
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+        }
+
+        .btn-success:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.45);
+        }
+
+        .btn-secondary {
+            background-color: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+        }
+
+        .btn-secondary:hover {
+            background-color: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .btn:disabled {
+            background: rgba(255, 255, 255, 0.05) !important;
+            border: 1px solid var(--border-color) !important;
+            color: rgba(255, 255, 255, 0.2) !important;
+            cursor: not-allowed !important;
+            box-shadow: none !important;
+            transform: none !important;
+        }
+
+        /* Loader & Progress Bar */
+        .progress-container {
+            background-color: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 15px;
+            display: none;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12.5px;
+            font-weight: 700;
+        }
+
+        .progress-bar-bg {
+            background-color: rgba(255, 255, 255, 0.05);
+            height: 8px;
+            border-radius: 4px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress-bar-fill {
+            background: linear-gradient(90deg, var(--primary) 0%, #3b82f6 100%);
+            height: 100%;
+            width: 0%;
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        .progress-status {
+            font-size: 11.5px;
+            color: var(--text-muted);
+            margin: 0;
+        }
+
+        /* Overlay Loader Inicial */
+        .overlay-loader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(11, 15, 25, 0.9);
+            backdrop-filter: blur(10px);
+            z-index: 9999;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(124, 58, 237, 0.1);
+            border-radius: 50%;
+            border-top-color: var(--primary);
+            animation: spin 1s infinite linear;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loader-text {
+            font-family: var(--font-outfit);
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .progress-container {
+            width: 400px;
+            max-width: 90vw;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .progress-bar-track {
+            width: 100%;
+            height: 8px;
+            background: rgba(124, 58, 237, 0.15);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, var(--primary), #a855f7, #06b6d4);
+            border-radius: 8px;
+            transition: width 0.5s ease;
+        }
+
+        .progress-stats {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            font-size: 13px;
+            color: var(--text-muted);
+            font-family: var(--font-outfit);
+        }
+
+        .progress-stats span {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .progress-detail {
+            font-size: 14px;
+            color: rgba(255,255,255,0.6);
+            font-family: var(--font-outfit);
+            text-align: center;
+            min-height: 20px;
+        }
+
+        /* Alertas */
+        .alert {
+            position: fixed;
+            top: 25px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10000;
+            padding: 15px 22px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            display: none;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+            max-width: 90%;
+            width: max-content;
+            backdrop-filter: blur(16px);
+            animation: slide-in-alert 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        @keyframes slide-in-alert {
+            from {
+                transform: translate(-50%, -30px);
+                opacity: 0;
+            }
+            to {
+                transform: translate(-50%, 0);
+                opacity: 1;
+            }
+        }
+
+        .alert-success {
+            background-color: rgba(16, 185, 129, 0.15);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            color: #10b981;
+            text-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
+        }
+
+        .alert-error {
+            background-color: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #f87171;
+            text-shadow: 0 0 10px rgba(239, 68, 68, 0.2);
+        }
+
+        .btn-broom {
+            background-color: rgba(124, 58, 237, 0.1);
+            border: 1px solid rgba(124, 58, 237, 0.3);
+            color: #c084fc;
+        }
+        .btn-broom:hover {
+            background-color: rgba(124, 58, 237, 0.2);
+            border-color: rgba(124, 58, 237, 0.5);
+            color: #d8b4fe;
+            transform: translateY(-1px);
+        }
+
+        /* Estilos da Pré-visualização da Questão */
+        .active-tab {
+            background-color: var(--primary) !important;
+            border-color: var(--primary) !important;
+            color: #ffffff !important;
+            box-shadow: 0 0 10px rgba(124, 58, 237, 0.3);
+        }
+
+        .preview-card {
+            background-color: rgba(255, 255, 255, 0.015);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .preview-badge-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 5px;
+        }
+
+        .preview-badge {
+            font-size: 11px;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 20px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+        
+        .badge-banca { background-color: rgba(124, 58, 237, 0.12); color: #a78bfa; border-color: rgba(124, 58, 237, 0.2); }
+        .badge-instituicao { background-color: rgba(59, 130, 246, 0.12); color: #60a5fa; border-color: rgba(59, 130, 246, 0.2); }
+        .badge-cargo { background-color: rgba(236, 72, 153, 0.12); color: #f472b6; border-color: rgba(236, 72, 153, 0.2); }
+        .badge-ano { background-color: rgba(245, 158, 11, 0.12); color: #fbbf24; border-color: rgba(245, 158, 11, 0.2); }
+        .badge-disciplina { background-color: rgba(16, 185, 129, 0.12); color: #34d399; border-color: rgba(16, 185, 129, 0.2); }
+        .badge-assunto { background-color: rgba(107, 114, 128, 0.2); color: #d1d5db; border-color: rgba(107, 114, 128, 0.3); }
+        .badge-dificuldade { background-color: rgba(239, 68, 68, 0.12); color: #f87171; border-color: rgba(239, 68, 68, 0.2); }
+
+        .preview-section-title {
+            font-size: 11px;
+            font-weight: 800;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 10px;
+        }
+
+        .preview-texto-associado {
+            background-color: rgba(255, 255, 255, 0.02);
+            border-left: 3px solid var(--primary);
+            border-radius: 0 8px 8px 0;
+            padding: 15px;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .preview-enunciado {
+            font-size: 15px;
+            line-height: 1.6;
+            color: var(--text-main);
+        }
+
+        .preview-image-wrapper {
+            margin-top: 15px;
+            display: flex;
+            justify-content: center;
+            background-color: rgba(0, 0, 0, 0.2);
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        .preview-image-enunciado {
+            max-width: 100%;
+            max-height: 350px;
+            border-radius: 4px;
+            object-fit: contain;
+        }
+
+        .preview-alternatives {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .preview-alternative-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 12px 16px;
+            background-color: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            transition: var(--transition);
+            position: relative;
+        }
+
+        .preview-alternative-item.correct {
+            background-color: rgba(16, 185, 129, 0.04);
+            border-color: rgba(16, 185, 129, 0.4);
+            box-shadow: 0 0 12px rgba(16, 185, 129, 0.05);
+        }
+
+        .preview-alt-badge {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background-color: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-color);
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 12px;
+            flex-shrink: 0;
+            margin-top: 1px;
+            transition: var(--transition);
+        }
+
+        .preview-alternative-item.correct .preview-alt-badge {
+            background-color: var(--success);
+            border-color: var(--success);
+            color: #ffffff;
+            box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
+        }
+
+        .preview-alt-content-body {
+            flex-grow: 1;
+            font-size: 14px;
+            line-height: 1.5;
+            color: var(--text-main);
+        }
+
+        .preview-alt-image-wrapper {
+            margin-top: 8px;
+            display: flex;
+            background-color: rgba(0, 0, 0, 0.15);
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            width: fit-content;
+        }
+
+        .preview-image-alt {
+            max-height: 120px;
+            max-width: 100%;
+            object-fit: contain;
+            border-radius: 3px;
+        }
+
+        .preview-correct-icon {
+            color: var(--success);
+            font-size: 18px;
+            align-self: center;
+            margin-left: 10px;
+            filter: drop-shadow(0 0 4px rgba(16, 185, 129, 0.3));
+        }
+
+        .preview-comentario-box {
+            background-color: rgba(124, 58, 237, 0.02);
+            border: 1px dashed rgba(124, 58, 237, 0.2);
+            border-radius: 10px;
+            padding: 16px;
+            margin-top: 10px;
+        }
+        
+        .preview-comentario-box.empty-comentario {
+            background-color: rgba(255, 255, 255, 0.01);
+            border: 1px dashed var(--border-color);
+        }
+
+        .preview-comentario-title {
+            font-size: 12px;
+            font-weight: 700;
+            color: #c084fc;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Estilização interna para tabelas renderizadas no HTML de Enunciado/Comentários */
+        .preview-html-content table {
+            border-collapse: collapse;
+            width: 100% !important;
+            margin: 15px 0;
+            background-color: rgba(255, 255, 255, 0.02);
+            color: var(--text-main);
+            border: 1px solid var(--border-color) !important;
+        }
+        
+        .preview-html-content th {
+            background-color: rgba(255, 255, 255, 0.04) !important;
+            color: #ffffff !important;
+            font-weight: bold;
+            padding: 8px 12px !important;
+            border: 1px solid var(--border-color) !important;
+        }
+
+        .preview-html-content td {
+            padding: 8px 12px !important;
+            border: 1px solid var(--border-color) !important;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="header-logo">
+            <i class="fa-solid fa-gears"></i>
+            <span>Extrator de Questões Pomaroli</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <button id="btn-fullscreen-toggle" onclick="toggleFullscreenApp()" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #ffffff; padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s ease;">
+                <i class="fa-solid fa-expand"></i> <span>Expandir Tela</span>
+            </button>
+            <span class="header-tag">Extrator Pomaroli v2.5</span>
+        </div>
+    </header>
+    <script>
+        function toggleFullscreenApp() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => console.log('Fullscreen:', err));
+            } else {
+                if (document.exitFullscreen) document.exitFullscreen();
+            }
+        }
+    </script>
+
+    <div class="main-container">
+        
+        <!-- Alertas dinâmicos -->
+        <div id="global-alert" class="alert">
+            <i class="fa-solid fa-circle-check"></i>
+            <span id="alert-message"></span>
+        </div>
+
+        <!-- FASE 1: UPLOAD DO PDF DE QUESTÕES -->
+        <section id="upload-box" class="upload-section" onclick="document.getElementById('questoes_pdf_input').click()">
+            <div class="upload-icon">
+                <i class="fa-solid fa-file-pdf"></i>
+            </div>
+            <h2>Arraste ou selecione o PDF de Questões</h2>
+            <p>Layouts de coluna única ou dupla são processados e extraídos localmente de forma instantânea.</p>
+            <input type="file" id="questoes_pdf_input" class="upload-input" accept=".pdf" onchange="enviarPDFQuestoes(event)">
+        </section>
+
+        <!-- CONTROLES DO PARSER DE QUESTÕES -->
+        <div id="parser-config-card" style="margin: 15px auto; max-width: 600px; padding: 20px; border-radius: 12px; background: rgba(22, 27, 38, 0.75); border: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 15px;">
+            <div style="font-weight: 700; font-size: 15px; color: var(--primary); margin-bottom: 5px; font-family: var(--font-outfit); display: flex; align-items: center; gap: 8px;">
+                <i class="fa-solid fa-sliders"></i>
+                <span>Configurações do Processamento do PDF</span>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 13.5px; font-weight: 600;">
+                    <input type="checkbox" id="usar-ia-segmentar" style="width: 17px; height: 17px;" onchange="toggleIaSegmentarConfig()">
+                    <span>Usar Segmentação por IA</span>
+                </label>
+                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 13.5px; font-weight: 600;">
+                    <input type="checkbox" id="usar-ocr" style="width: 17px; height: 17px;">
+                    <span>Forçar OCR (PDF Digitalizado)</span>
+                </label>
+            </div>
+            
+            <div id="ia-segmentar-config" style="display: none; flex-direction: column; gap: 10px; border-top: 1px solid var(--border-color); padding-top: 12px; margin-top: 5px;">
+                <p style="margin: 0; font-size: 12px; color: var(--text-muted);">Configure o provedor e modelo de IA para a segmentação semântica das questões:</p>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div class="form-group" style="margin: 0;">
+                        <label for="seg-provider" style="font-size: 11px; margin-bottom: 4px; color: white;">Provedor da IA</label>
+                        <select id="seg-provider" onchange="alternarSegProvider()" style="width: 100%; padding: 6px 10px; font-size: 13px; background: rgba(11, 15, 25, 0.9); border: 1px solid var(--border-color); border-radius: 6px; color: white; outline: none;">
+                            <option value="ollama">Ollama (Local)</option>
+                            <option value="gemini" selected>Google Gemini</option>
+                            <option value="openai">OpenAI (ChatGPT)</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label for="seg-model" style="font-size: 11px; margin-bottom: 4px; color: white;">Modelo de IA</label>
+                        <input type="text" id="seg-model" value="gemini-2.5-flash" placeholder="gemini-2.5-flash" style="padding: 6px 10px; font-size: 13px; background: rgba(0,0,0,0.2); border: 1px solid var(--border-color); border-radius: 6px; color: white;">
+                    </div>
+                </div>
+                <div id="seg-endpoint-group" class="form-group" style="margin: 0; display: none;">
+                    <label for="seg-endpoint" style="font-size: 11px; margin-bottom: 4px; color: white;">Endpoint do Ollama</label>
+                    <input type="text" id="seg-endpoint" value="http://localhost:11434" style="padding: 6px 10px; font-size: 13px; background: rgba(0,0,0,0.2); border: 1px solid var(--border-color); border-radius: 6px; color: white;">
+                </div>
+            </div>
+        </div>
+
+        <!-- FASE 2: WORKSPACE INTERATIVO -->
+        <div id="workspace" class="workspace-grid">
+            
+            <!-- Coluna da Esquerda: Questões e Editor -->
+            <section class="panel-card">
+                <div class="panel-header">
+                    <h3 class="panel-title">
+                        <i class="fa-solid fa-list-check"></i>
+                        <span>Questões Extraídas</span>
+                    </h3>
+                    <span id="total-badge" class="header-tag" style="background: rgba(255,255,255,0.08); color: white; border: 1px solid var(--border-color);">0 Questões</span>
+                </div>
+                
+                <div id="questions-container" class="questions-list">
+                    <!-- Gerado Dinamicamente -->
+                </div>
+                
+                <!-- Editor Visual da Questão Ativa -->
+                <div id="question-editor" class="editor-form" style="display: none;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; width: 100%; box-sizing: border-box;">
+                        <div class="panel-title" style="margin: 0; border: none; padding: 0;">
+                            <i class="fa-solid fa-pen-to-square"></i>
+                            <span>Revisar Questão <span id="edit-q-num">1</span></span>
+                        </div>
+                        <div class="editor-tabs" style="display: flex; gap: 8px;">
+                            <button type="button" id="tab-btn-editar" class="btn btn-secondary active-tab" onclick="switchEditorTab('editar')" style="padding: 6px 12px; font-size: 13px; border-radius: 6px;">
+                                <i class="fa-solid fa-pen"></i> Editar
+                            </button>
+                            <button type="button" id="tab-btn-visualizar" class="btn btn-secondary" onclick="abrirPreviewEmNovaAba()" style="padding: 6px 12px; font-size: 13px; border-radius: 6px;">
+                                <i class="fa-solid fa-eye"></i> Pré-visualizar
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Barra de Ações Editoriais Avançadas -->
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; width: 100%; margin-bottom: 20px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
+                        <button type="button" class="btn btn-secondary" onclick="mesclarQuestaoComProxima()" style="padding: 8px 10px; font-size: 11.5px; background: rgba(59, 130, 246, 0.1); border-color: rgba(59, 130, 246, 0.3); color: #60a5fa; font-weight: 600;">
+                            <i class="fa-solid fa-compress"></i> Mesclar c/ Próxima
+                        </button>
+                        <button type="button" class="btn btn-secondary" onclick="dividirQuestaoAtiva()" style="padding: 8px 10px; font-size: 11.5px; background: rgba(245, 158, 11, 0.1); border-color: rgba(245, 158, 11, 0.3); color: #fbbf24; font-weight: 600;">
+                            <i class="fa-solid fa-scissors"></i> Dividir Questão
+                        </button>
+                        <button type="button" class="btn btn-secondary" onclick="excluirQuestaoAtiva()" style="padding: 8px 10px; font-size: 11.5px; background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.3); color: #f87171; font-weight: 600;">
+                            <i class="fa-solid fa-trash"></i> Excluir Questão
+                        </button>
+                        <button type="button" class="btn btn-secondary" onclick="adicionarNovaQuestao()" style="padding: 8px 10px; font-size: 11.5px; background: rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.3); color: #34d399; font-weight: 600;">
+                            <i class="fa-solid fa-plus"></i> Inserir Nova
+                        </button>
+                    </div>
+                    
+                    <div id="editor-fields-container" style="display: flex; flex-direction: column; gap: 15px; width: 100%;">
+                        <div class="form-group full">
+                            <label for="edit-texto-associado">Texto Associado (Opcional - Exibido no topo)</label>
+                            <div class="wysiwyg-toolbar" style="display: flex; gap: 8px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-bottom: none; border-radius: 6px 6px 0 0; padding: 6px 10px;">
+                                <button type="button" onclick="formatarTexto('edit-texto-associado', 'bold')" title="Negrito" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:12px;"><i class="fa-solid fa-bold"></i></button>
+                                <button type="button" onclick="formatarTexto('edit-texto-associado', 'italic')" title="Itálico" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:12px;"><i class="fa-solid fa-italic"></i></button>
+                                <button type="button" onclick="formatarTexto('edit-texto-associado', 'underline')" title="Sublinhado" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:12px;"><i class="fa-solid fa-underline"></i></button>
+                                <button type="button" onclick="formatarTexto('edit-texto-associado', 'br')" title="Quebra de Linha" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:12px;"><i class="fa-solid fa-turn-down"></i></button>
+                                <button type="button" onclick="formatarTexto('edit-texto-associado', 'table')" title="Tabela" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:12px;"><i class="fa-solid fa-table"></i></button>
+                            </div>
+                            <textarea id="edit-texto-associado" oninput="salvarQuestaoAtiva()" style="min-height: 60px; border-radius: 0 0 6px 6px;" placeholder="Digite o texto de apoio ou enunciado de leitura compartilhada se aplicável..."></textarea>
+                        </div>
+                        <div class="form-group full">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; width: 100%;">
+                                <label for="edit-enunciado" style="margin: 0;">Enunciado da Questão</label>
+                                <label class="btn-upload-midia" title="Vincular Imagem ao Enunciado" style="cursor: pointer; color: var(--success); font-size: 12.5px; font-weight: 600;">
+                                    <i class="fa-solid fa-image"></i> + Imagem
+                                    <input type="file" accept="image/*" style="display: none;" onchange="uploadImagemCampo(event, 'Enunciado_Imagem')">
+                                </label>
+                            </div>
+                            <div class="wysiwyg-toolbar" style="display: flex; gap: 8px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-bottom: none; border-radius: 6px 6px 0 0; padding: 6px 10px; width: 100%; box-sizing: border-box;">
+                                <button type="button" onclick="formatarTexto('edit-enunciado', 'bold')" title="Negrito" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:12px;"><i class="fa-solid fa-bold"></i></button>
+                                <button type="button" onclick="formatarTexto('edit-enunciado', 'italic')" title="Itálico" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:12px;"><i class="fa-solid fa-italic"></i></button>
+                                <button type="button" onclick="formatarTexto('edit-enunciado', 'underline')" title="Sublinhado" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:12px;"><i class="fa-solid fa-underline"></i></button>
+                                <button type="button" onclick="formatarTexto('edit-enunciado', 'br')" title="Quebra de Linha" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:12px;"><i class="fa-solid fa-turn-down"></i></button>
+                                <button type="button" onclick="formatarTexto('edit-enunciado', 'table')" title="Tabela" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:12px;"><i class="fa-solid fa-table"></i></button>
+                            </div>
+                            <textarea id="edit-enunciado" oninput="salvarQuestaoAtiva()" style="border-radius: 0 0 6px 6px;"></textarea>
+                            <div id="enunciado-img-preview" style="display: none; margin-top: 10px; align-items: center; gap: 15px;">
+                                <img src="" style="max-height: 120px; border-radius: 6px; border: 1px solid var(--border-color); box-shadow: var(--shadow);">
+                                <button type="button" class="btn btn-secondary" onclick="removerImagemCampo('Enunciado_Imagem')" style="padding: 5px 10px; font-size: 11px;">
+                                    <i class="fa-solid fa-trash" style="color: var(--error);"></i> Remover
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="alternatives-editor">
+                            <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">Alternativas</label>
+                            
+                            <div class="alt-input-group">
+                                <span class="alt-badge">A</span>
+                                <input type="text" id="edit-opcao-a" oninput="salvarQuestaoAtiva()">
+                                <label class="btn-upload-midia" style="cursor: pointer; color: var(--success); font-size: 15px; padding: 0 10px;" title="Vincular Imagem à Alternativa A">
+                                    <i class="fa-solid fa-image"></i>
+                                    <input type="file" accept="image/*" style="display: none;" onchange="uploadImagemCampo(event, 'Opcao_A_Imagem')">
+                                </label>
+                            </div>
+                            <div id="opcao-a-img-preview" style="display: none; margin-left: 36px; margin-top: 5px; margin-bottom: 10px; align-items: center; gap: 10px;">
+                                <img src="" style="max-height: 60px; border-radius: 4px; border: 1px solid var(--border-color);">
+                                <button type="button" onclick="removerImagemCampo('Opcao_A_Imagem')" style="background: transparent; border: none; color: var(--error); cursor: pointer; font-size: 14px;"><i class="fa-solid fa-trash"></i></button>
+                            </div>
+
+                            <div class="alt-input-group">
+                                <span class="alt-badge">B</span>
+                                <input type="text" id="edit-opcao-b" oninput="salvarQuestaoAtiva()">
+                                <label class="btn-upload-midia" style="cursor: pointer; color: var(--success); font-size: 15px; padding: 0 10px;" title="Vincular Imagem à Alternativa B">
+                                    <i class="fa-solid fa-image"></i>
+                                    <input type="file" accept="image/*" style="display: none;" onchange="uploadImagemCampo(event, 'Opcao_B_Imagem')">
+                                </label>
+                            </div>
+                            <div id="opcao-b-img-preview" style="display: none; margin-left: 36px; margin-top: 5px; margin-bottom: 10px; align-items: center; gap: 10px;">
+                                <img src="" style="max-height: 60px; border-radius: 4px; border: 1px solid var(--border-color);">
+                                <button type="button" onclick="removerImagemCampo('Opcao_B_Imagem')" style="background: transparent; border: none; color: var(--error); cursor: pointer; font-size: 14px;"><i class="fa-solid fa-trash"></i></button>
+                            </div>
+
+                            <div class="alt-input-group">
+                                <span class="alt-badge">C</span>
+                                <input type="text" id="edit-opcao-c" oninput="salvarQuestaoAtiva()">
+                                <label class="btn-upload-midia" style="cursor: pointer; color: var(--success); font-size: 15px; padding: 0 10px;" title="Vincular Imagem à Alternativa C">
+                                    <i class="fa-solid fa-image"></i>
+                                    <input type="file" accept="image/*" style="display: none;" onchange="uploadImagemCampo(event, 'Opcao_C_Imagem')">
+                                </label>
+                            </div>
+                            <div id="opcao-c-img-preview" style="display: none; margin-left: 36px; margin-top: 5px; margin-bottom: 10px; align-items: center; gap: 10px;">
+                                <img src="" style="max-height: 60px; border-radius: 4px; border: 1px solid var(--border-color);">
+                                <button type="button" onclick="removerImagemCampo('Opcao_C_Imagem')" style="background: transparent; border: none; color: var(--error); cursor: pointer; font-size: 14px;"><i class="fa-solid fa-trash"></i></button>
+                            </div>
+
+                            <div class="alt-input-group">
+                                <span class="alt-badge">D</span>
+                                <input type="text" id="edit-opcao-d" oninput="salvarQuestaoAtiva()">
+                                <label class="btn-upload-midia" style="cursor: pointer; color: var(--success); font-size: 15px; padding: 0 10px;" title="Vincular Imagem à Alternativa D">
+                                    <i class="fa-solid fa-image"></i>
+                                    <input type="file" accept="image/*" style="display: none;" onchange="uploadImagemCampo(event, 'Opcao_D_Imagem')">
+                                </label>
+                            </div>
+                            <div id="opcao-d-img-preview" style="display: none; margin-left: 36px; margin-top: 5px; margin-bottom: 10px; align-items: center; gap: 10px;">
+                                <img src="" style="max-height: 60px; border-radius: 4px; border: 1px solid var(--border-color);">
+                                <button type="button" onclick="removerImagemCampo('Opcao_D_Imagem')" style="background: transparent; border: none; color: var(--error); cursor: pointer; font-size: 14px;"><i class="fa-solid fa-trash"></i></button>
+                            </div>
+
+                            <div class="alt-input-group">
+                                <span class="alt-badge">E</span>
+                                <input type="text" id="edit-opcao-e" placeholder="(Opcional)" oninput="salvarQuestaoAtiva()">
+                                <label class="btn-upload-midia" style="cursor: pointer; color: var(--success); font-size: 15px; padding: 0 10px;" title="Vincular Imagem à Alternativa E">
+                                    <i class="fa-solid fa-image"></i>
+                                    <input type="file" accept="image/*" style="display: none;" onchange="uploadImagemCampo(event, 'Opcao_E_Imagem')">
+                                </label>
+                            </div>
+                            <div id="opcao-e-img-preview" style="display: none; margin-left: 36px; margin-top: 5px; margin-bottom: 10px; align-items: center; gap: 10px;">
+                                <img src="" style="max-height: 60px; border-radius: 4px; border: 1px solid var(--border-color);">
+                                <button type="button" onclick="removerImagemCampo('Opcao_E_Imagem')" style="background: transparent; border: none; color: var(--error); cursor: pointer; font-size: 14px;"><i class="fa-solid fa-trash"></i></button>
+                            </div>
+                        </div>
+                        
+                        <div class="form-row" style="margin-top: 10px;">
+                            <div class="form-group">
+                                <label for="edit-disciplina">Disciplina</label>
+                                <input type="text" id="edit-disciplina" oninput="salvarQuestaoAtiva()">
+                            </div>
+                            <div class="form-group">
+                                <label for="edit-assunto">Assunto</label>
+                                <input type="text" id="edit-assunto" oninput="salvarQuestaoAtiva()">
+                            </div>
+                        </div>
+                        
+                        <div class="form-group full">
+                            <label for="edit-comentario">Comentário Explicativo da Questão</label>
+                            <div class="wysiwyg-toolbar" style="display: flex; gap: 8px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-bottom: none; border-radius: 6px 6px 0 0; padding: 6px 10px; width: 100%; box-sizing: border-box;">
+                                <button type="button" onclick="formatarTexto('edit-comentario', 'bold')" title="Negrito" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:12px;"><i class="fa-solid fa-bold"></i></button>
+                                <button type="button" onclick="formatarTexto('edit-comentario', 'italic')" title="Itálico" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:12px;"><i class="fa-solid fa-italic"></i></button>
+                                <button type="button" onclick="formatarTexto('edit-comentario', 'underline')" title="Sublinhado" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:12px;"><i class="fa-solid fa-underline"></i></button>
+                                <button type="button" onclick="formatarTexto('edit-comentario', 'br')" title="Quebra de Linha" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:12px;"><i class="fa-solid fa-turn-down"></i></button>
+                                <button type="button" onclick="formatarTexto('edit-comentario', 'table')" title="Tabela" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:12px;"><i class="fa-solid fa-table"></i></button>
+                            </div>
+                            <textarea id="edit-comentario" style="min-height: 120px; border-radius: 0 0 6px 6px;" oninput="salvarQuestaoAtiva()"></textarea>
+                        </div>
+                    </div>
+                    
+                    <div id="editor-preview-container" style="display: none; flex-direction: column; gap: 20px; width: 100%;"></div>
+                </div>
+            </section>
+
+            <!-- Coluna da Direita: Mapeador de Gabarito e Integração Gemini -->
+            <section style="display: flex; flex-direction: column; gap: 25px; min-width: 0; overflow: hidden;">
+                
+                <!-- Painel de Classificação da Prova (Metadados Gerais) -->
+                <div class="panel-card">
+                    <div class="panel-header">
+                        <h3 class="panel-title">
+                            <i class="fa-solid fa-folder-open"></i>
+                            <span>Classificação da Prova (Filtros WP)</span>
+                        </h3>
+                    </div>
+                    <div class="editor-form" style="margin-top: 0; border: none; padding-top: 0;">
+                        <div class="form-row-4">
+                            <div class="form-group">
+                                <label for="meta-banca">Banca</label>
+                                <input type="text" id="meta-banca" placeholder="Ex: Instituto AOCP">
+                            </div>
+                            <div class="form-group">
+                                <label for="meta-instituicao">Instituição</label>
+                                <input type="text" id="meta-instituicao" placeholder="Ex: SEJUSP MG">
+                            </div>
+                            <div class="form-group">
+                                <label for="meta-cargo">Cargo</label>
+                                <input type="text" id="meta-cargo" placeholder="Ex: Policial Penal">
+                            </div>
+                            <div class="form-group">
+                                <label for="meta-ano">Ano</label>
+                                <input type="text" id="meta-ano" placeholder="Ex: 2025">
+                            </div>
+                        </div>
+                        <div class="form-row-4" style="margin-top: 15px;">
+                            <div class="form-group">
+                                <label for="meta-carreira">Carreira</label>
+                                <input type="text" id="meta-carreira" placeholder="Ex: Policial">
+                            </div>
+                            <div class="form-group">
+                                <label for="meta-formacao">Formação</label>
+                                <input type="text" id="meta-formacao" placeholder="Ex: Geral">
+                            </div>
+                            <div class="form-group">
+                                <label for="meta-escolaridade">Escolaridade</label>
+                                <select id="meta-escolaridade">
+                                    <option value="Médio">Médio</option>
+                                    <option value="Superior">Superior</option>
+                                    <option value="Fundamental">Fundamental</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="meta-dificuldade">Dificuldade</label>
+                                <select id="meta-dificuldade">
+                                    <option value="Fácil">Fácil</option>
+                                    <option value="Médio" selected>Médio</option>
+                                    <option value="Difícil">Difícil</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Painel de Gabaritos de 1 a 60 -->
+                <div class="panel-card">
+                    <div class="panel-header">
+                        <h3 class="panel-title">
+                            <i class="fa-solid fa-square-poll-vertical"></i>
+                            <span>Mapear Gabarito</span>
+                        </h3>
+                    </div>
+                    
+                    <div id="gabaritos-container" class="gabarito-grid">
+                        <!-- Gerado Dinamicamente -->
+                    </div>
+                    
+                    <div class="actions-card">
+                        <!-- Upload Automático de Imagem de Gabarito via Gemini -->
+                        <div class="gemini-upload-box" onclick="document.getElementById('gabarito_pdf_input').click()">
+                            <i class="fa-solid fa-wand-magic-sparkles" style="color: var(--success); font-size: 24px; margin-bottom: 8px;"></i>
+                            <h4 style="margin: 0 0 4px 0; font-size: 14px; font-weight: 700;">Ler Gabarito automaticamente com a IA</h4>
+                            <p style="margin: 0; font-size: 11.5px; color: var(--text-muted);">Envie o PDF/Imagem do Gabarito Oficial</p>
+                            <input type="file" id="gabarito_pdf_input" class="upload-input" accept=".pdf,image/*" onchange="extrairGabaritoGemini(event)">
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+                            <button class="btn btn-secondary" onclick="limparGabaritos()" style="padding: 10px 12px; font-size: 13px;">
+                                <i class="fa-solid fa-eraser"></i> Limpar
+                            </button>
+                            <button class="btn btn-secondary" onclick="copiarGabaritoParaClipboard()" style="padding: 10px 12px; font-size: 13px; background-color: rgba(124, 58, 237, 0.1); border-color: rgba(124, 58, 237, 0.3); color: #c084fc;">
+                                <i class="fa-solid fa-copy"></i> Copiar Gabarito
+                            </button>
+                        </div>
+                        
+                        <!-- Campo para Colar Sequência Manual (Abordagem Offline Ultra Produtiva!) -->
+                        <div style="border-top: 1px dashed var(--border-color); padding-top: 15px; margin-top: 10px; display: flex; flex-direction: column; gap: 8px; text-align: left;">
+                            <label style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Colar Gabarito em Lote (Offline)</label>
+                            <div style="display: flex; gap: 8px;">
+                                <input type="text" id="gabarito-lote-input" placeholder="Ex: ADCBE... ou 1-A, 2-D, 3-C..." style="flex-grow: 1; background-color: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 8px; padding: 10px; color: white; font-size: 12.5px; outline: none;">
+                                <button class="btn btn-primary" onclick="aplicarGabaritoLoteTexto()" style="padding: 10px 15px; font-size: 12.5px; border-radius: 8px; font-family: var(--font-inter);">
+                                    <i class="fa-solid fa-check"></i> Aplicar
+                                </button>
+                            </div>
+                            <p style="margin: 0; font-size: 11px; color: var(--text-muted); line-height: 1.3;">Cole as letras seguidas ou pares formatados (ex: 1-A 2-B) para preencher instantaneamente e sem IA.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Painel de Enriquecimento e Ações Finais -->
+                <div class="panel-card" style="flex-grow: 1;">
+                    <div class="panel-header">
+                        <h3 class="panel-title">
+                            <i class="fa-solid fa-sparkles"></i>
+                            <span>Enriquecer & Exportar</span>
+                        </h3>
+                    </div>
+                    
+                    <!-- Seletor e Configuração de IA Multiprovedor -->
+                    <div class="editor-form" style="margin-top: 0; border: none; padding-top: 0; margin-bottom: 15px;">
+                        <div class="form-group" style="margin-bottom: 12px;">
+                            <label for="ia-provider" style="font-weight: 600; display: flex; justify-content: space-between; align-items: center;">
+                                <span>Provedor de Inteligência Artificial</span>
+                            </label>
+                            <select id="ia-provider" onchange="alternarCamposProvedor()" style="width: 100%; padding: 10px; border-radius: 8px; background-color: rgba(11, 15, 25, 0.9); border: 1px solid var(--border-color); color: var(--text-main); font-family: var(--font-inter); font-size: 14px; outline: none; transition: var(--transition);">
+                                <option value="gemini">Google Gemini</option>
+                                <option value="openai">OpenAI (ChatGPT)</option>
+                                <option value="deepseek">DeepSeek</option>
+                                <option value="ollama">Ollama (100% Local / Offline)</option>
+                            </select>
+                        </div>
+
+                        <!-- Campos dinâmicos do Gemini -->
+                        <div id="fields-gemini" class="provider-fields">
+                            <div class="form-group">
+                                <label for="gemini-api-key" style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span>Chave de API do Gemini (Opcional)</span>
+                                    <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color: var(--primary); text-transform: none; text-decoration: underline; font-weight: 500; font-size: 11.5px;">Obter chave gratuita</a>
+                                </label>
+                                <input type="password" id="gemini-api-key" placeholder="Cole sua API Key do Gemini aqui (ou deixe em branco)..." oninput="salvarConfigIaLocal()">
+                            </div>
+                        </div>
+
+                        <!-- Campos dinâmicos da OpenAI -->
+                        <div id="fields-openai" class="provider-fields" style="display: none;">
+                            <div class="form-group" style="margin-bottom: 8px;">
+                                <label for="openai-api-key" style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span>Chave de API da OpenAI</span>
+                                    <a href="https://platform.openai.com/api-keys" target="_blank" style="color: var(--primary); text-transform: none; text-decoration: underline; font-weight: 500; font-size: 11.5px;">Obter chave</a>
+                                </label>
+                                <input type="password" id="openai-api-key" placeholder="sk-..." oninput="salvarConfigIaLocal()">
+                            </div>
+                            <div class="form-group">
+                                <label for="openai-model">Modelo OpenAI</label>
+                                <input type="text" id="openai-model" placeholder="gpt-4o-mini" value="gpt-4o-mini" oninput="salvarConfigIaLocal()">
+                            </div>
+                        </div>
+
+                        <!-- Campos dinâmicos do DeepSeek -->
+                        <div id="fields-deepseek" class="provider-fields" style="display: none;">
+                            <div class="form-group" style="margin-bottom: 8px;">
+                                <label for="deepseek-api-key" style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span>Chave de API do DeepSeek</span>
+                                    <a href="https://platform.deepseek.com/" target="_blank" style="color: var(--primary); text-transform: none; text-decoration: underline; font-weight: 500; font-size: 11.5px;">Obter chave</a>
+                                </label>
+                                <input type="password" id="deepseek-api-key" placeholder="sk-..." oninput="salvarConfigIaLocal()">
+                            </div>
+                            <div class="form-group">
+                                <label for="deepseek-model">Modelo DeepSeek</label>
+                                <input type="text" id="deepseek-model" placeholder="deepseek-chat" value="deepseek-chat" oninput="salvarConfigIaLocal()">
+                            </div>
+                        </div>
+
+                        <!-- Campos dinâmicos do Ollama -->
+                        <div id="fields-ollama" class="provider-fields" style="display: none;">
+                            <div class="form-group" style="margin-bottom: 8px;">
+                                <label for="ollama-endpoint">Endpoint do Ollama</label>
+                                <input type="text" id="ollama-endpoint" placeholder="http://localhost:11434" value="http://localhost:11434" oninput="salvarConfigIaLocal()">
+                            </div>
+                            <div class="form-group">
+                                <label for="ollama-model">Modelo Ollama Local</label>
+                                <input type="text" id="ollama-model" placeholder="qwen3-vl:2b ou glm-ocr" value="qwen3-vl:2b" oninput="salvarConfigIaLocal()">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="actions-card" style="justify-content: flex-end; flex-grow: 1;">
+                        <!-- Barra de Progresso AJAX -->
+                        <div id="progress-box" class="progress-container">
+                            <div class="progress-header">
+                                <span style="color: var(--primary);">Gerando Comentários com a IA...</span>
+                                <span id="progress-percent">0%</span>
+                            </div>
+                            <div class="progress-bar-bg">
+                                <div id="progress-bar" class="progress-bar-fill"></div>
+                            </div>
+                            <p id="progress-status-msg" class="progress-status">Iniciando enriquecimento...</p>
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                            <button id="btn-limpar-ruidos-ia" class="btn btn-broom" onclick="iniciarLimpezaNoiseLote()" title="Limpa ruídos das questões selecionadas (ou todas se nenhuma selecionada)">
+                                <i class="fa-solid fa-broom"></i> Limpar Ruídos com IA
+                            </button>
+                            <button id="btn-comentarios-ia" class="btn btn-primary" onclick="iniciarComentariosLote()">
+                                <i class="fa-solid fa-robot"></i> Gerar Comentários via IA
+                            </button>
+                        </div>
+                        
+                         <button id="btn-salvar-wordpress" class="btn" onclick="salvarNoBancoWordPress()" style="width: 100%; padding: 14px; font-size: 14px; font-weight: 700; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #ffffff; border: none; border-radius: 8px; margin-bottom: 12px; cursor: pointer; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);">
+                             <i class="fa-brands fa-wordpress"></i> Salvar no Banco de Questões do WordPress
+                         </button>
+
+                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                             <button id="btn-exportar-csv" class="btn btn-success" onclick="exportarEBaixarCSV()" style="padding: 12px 10px; font-size: 13.5px;">
+                                 <i class="fa-solid fa-file-csv"></i> Baixar CSV (Texto)
+                             </button>
+                             <button id="btn-exportar-json" class="btn btn-secondary" onclick="exportarEBaixarJSON()" style="padding: 12px 10px; font-size: 13.5px; border-color: rgba(59, 130, 246, 0.4); background: rgba(59, 130, 246, 0.1); color: #60a5fa;">
+                                 <i class="fa-solid fa-file-code"></i> Baixar JSON (Imagens)
+                             </button>
+                         </div>
+                    </div>
+                </div>
+
+            </section>
+
+        </div>
+
+    </div>
+
+    <!-- Overlay Loader -->
+    <div id="overlay-loader" class="overlay-loader">
+        <div class="spinner"></div>
+        <span id="loader-text-msg" class="loader-text">Extraindo questões localmente...</span>
+        <div id="progress-container" class="progress-container" style="display: none;">
+            <div class="progress-bar-track">
+                <div id="progress-bar-fill" class="progress-bar-fill"></div>
+            </div>
+            <div class="progress-stats">
+                <span><i class="fa-solid fa-file-lines"></i> <span id="progress-pages">0/0 páginas</span></span>
+                <span><i class="fa-solid fa-list-check"></i> <span id="progress-questions">0 questões</span></span>
+                <span><i class="fa-solid fa-clock"></i> <span id="progress-eta">Calculando...</span></span>
+            </div>
+            <div id="progress-detail" class="progress-detail"></div>
+        </div>
+    </div>
+
+    <!-- Scripts e Lógica AJAX -->
+    <script>
+        let questoes = [];
+        let questoesSelecionadas = new Set();
+        
+        function toggleIaSegmentarConfig() {
+            const checked = document.getElementById('usar-ia-segmentar').checked;
+            document.getElementById('ia-segmentar-config').style.display = checked ? 'flex' : 'none';
+        }
+
+        function alternarSegProvider() {
+            const provider = document.getElementById('seg-provider').value;
+            const endpointGroup = document.getElementById('seg-endpoint-group');
+            const modelInput = document.getElementById('seg-model');
+            
+            if (provider === 'ollama') {
+                endpointGroup.style.display = 'block';
+                modelInput.value = 'qwen3-vl:2b';
+            } else {
+                endpointGroup.style.display = 'none';
+                if (provider === 'gemini') {
+                    modelInput.value = 'gemini-2.5-flash';
+                } else if (provider === 'openai') {
+                    modelInput.value = 'gpt-4o-mini';
+                }
+            }
+        }
+        let questaoAtivaIdx = -1;
+
+        // Configuração nativa de Drag & Drop
+        const uploadBox = document.getElementById('upload-box');
+        ['dragenter', 'dragover'].forEach(eventName => {
+            uploadBox.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                uploadBox.classList.add('dragover');
+            }, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            uploadBox.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                uploadBox.classList.remove('dragover');
+            }, false);
+        });
+
+        uploadBox.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            if (files.length > 0 && files[0].name.endsWith('.pdf')) {
+                document.getElementById('questoes_pdf_input').files = files;
+                enviarPDFQuestoes({ target: { files: files } });
+            }
+        });
+
+        // 1. Envia o PDF de Questões para processar localmente ou via OCR / IA
+        let progressoEventSource = null;
+        
+        function iniciarProgressoSSE() {
+            // Inicia o polling de progresso via SSE
+            const container = document.getElementById('progress-container');
+            container.style.display = 'flex';
+            
+            progressoEventSource = new EventSource((window.API_BASE_URL || '') + '/api/progresso');
+            progressoEventSource.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    
+                    // Atualiza barra de progresso
+                    if (data.total_paginas > 0) {
+                        const pct = Math.round((data.pagina_atual / data.total_paginas) * 100);
+                        document.getElementById('progress-bar-fill').style.width = pct + '%';
+                        document.getElementById('progress-pages').textContent = 
+                            `${data.pagina_atual}/${data.total_paginas} p\u00e1ginas`;
+                    }
+                    
+                    // Atualiza contagem de questões
+                    document.getElementById('progress-questions').textContent = 
+                        `${data.questoes_encontradas || 0} quest\u00f5es`;
+                    
+                    // Calcula ETA
+                    if (data.tempo_por_pagina > 0 && data.total_paginas > 0 && data.pagina_atual > 0) {
+                        const restantes = data.total_paginas - data.pagina_atual;
+                        const etaSegundos = Math.round(restantes * data.tempo_por_pagina);
+                        if (etaSegundos > 60) {
+                            const min = Math.floor(etaSegundos / 60);
+                            const seg = etaSegundos % 60;
+                            document.getElementById('progress-eta').textContent = `~${min}m ${seg}s restantes`;
+                        } else if (etaSegundos > 0) {
+                            document.getElementById('progress-eta').textContent = `~${etaSegundos}s restantes`;
+                        } else {
+                            document.getElementById('progress-eta').textContent = 'Finalizando...';
+                        }
+                    }
+                    
+                    // Atualiza texto de detalhe e título principal
+                    if (data.etapa) {
+                        document.getElementById('progress-detail').textContent = data.etapa;
+                        document.getElementById('loader-text-msg').textContent = data.etapa;
+                    }
+                    
+                    // Se concluiu, fecha o SSE
+                    if (!data.ativo || data.etapa === 'concluido') {
+                        pararProgressoSSE();
+                    }
+                } catch(e) {}
+            };
+            progressoEventSource.onerror = function() {
+                pararProgressoSSE();
+            };
+        }
+        
+        function pararProgressoSSE() {
+            if (progressoEventSource) {
+                progressoEventSource.close();
+                progressoEventSource = null;
+            }
+        }
+        
+        function resetarProgresso() {
+            document.getElementById('progress-bar-fill').style.width = '0%';
+            document.getElementById('progress-pages').textContent = '0/0 p\u00e1ginas';
+            document.getElementById('progress-questions').textContent = '0 quest\u00f5es';
+            document.getElementById('progress-eta').textContent = 'Calculando...';
+            document.getElementById('progress-detail').textContent = '';
+            document.getElementById('progress-container').style.display = 'none';
+        }
+
+        function enviarPDFQuestoes(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            resetarProgresso();
+            exibirLoader(true, "Preparando an\u00e1lise do PDF...");
+            
+            const formData = new FormData();
+            formData.append('questoes_pdf', file);
+            
+            const usarIaSegmentar = document.getElementById('usar-ia-segmentar').checked;
+            const usarOcr = document.getElementById('usar-ocr').checked;
+            
+            formData.append('usar_ia_local', usarIaSegmentar);
+            formData.append('usar_ocr', usarOcr);
+            
+            // Se usar IA, inicia o progresso em tempo real
+            if (usarIaSegmentar || usarOcr) {
+                // Pequeno delay para dar tempo do backend inicializar
+                setTimeout(iniciarProgressoSSE, 800);
+            }
+            
+            // Determina qual provedor principal está configurado (para OCR ou IA)
+            const provider = usarIaSegmentar ? document.getElementById('seg-provider').value : document.getElementById('ia-provider').value;
+            formData.append('provedor', provider);
+            
+            // Pega as chaves de API com base no provedor
+            let apiKey = "";
+            if (provider === 'gemini') {
+                apiKey = document.getElementById('gemini-api-key').value.trim();
+            } else if (provider === 'openai') {
+                apiKey = document.getElementById('openai-api-key').value.trim();
+            } else if (provider === 'deepseek') {
+                apiKey = document.getElementById('deepseek-api-key').value.trim();
+            }
+            formData.append('api_key', apiKey);
+            
+            if (usarIaSegmentar) {
+                formData.append('model', document.getElementById('seg-model').value.trim() || 'gemini-2.5-flash');
+                formData.append('endpoint', document.getElementById('seg-endpoint').value.trim() || 'http://localhost:11434');
+            } else {
+                // Se usar OCR determinístico, manda o modelo geral configurado
+                let model = "";
+                let endpoint = "";
+                if (provider === 'openai') model = document.getElementById('openai-model').value.trim();
+                else if (provider === 'deepseek') model = document.getElementById('deepseek-model').value.trim();
+                else if (provider === 'ollama') {
+                    model = document.getElementById('ollama-model').value.trim();
+                    endpoint = document.getElementById('ollama-endpoint').value.trim();
+                }
+                formData.append('model', model);
+                formData.append('endpoint', endpoint);
+            }
+
+            fetch((window.API_BASE_URL || '') + '/api/processar', {
+                method: 'POST',
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                pararProgressoSSE();
+                exibirLoader(false);
+                resetarProgresso();
+                if (data.erro) {
+                    mostrarAlerta(data.erro, "error");
+                } else {
+                    questoes = data.questoes;
+                    
+                    // Preenche automaticamente o formulário de metadados gerais com os dados da primeira questão extraída
+                    if (questoes.length > 0) {
+                        const q1 = questoes[0];
+                        document.getElementById('meta-banca').value = q1.Banca || "";
+                        document.getElementById('meta-instituicao').value = q1.Instituicao || "";
+                        document.getElementById('meta-cargo').value = q1.Cargo || "";
+                        document.getElementById('meta-ano').value = q1.Ano || "";
+                        document.getElementById('meta-carreira').value = q1.Carreira || "";
+                        document.getElementById('meta-formacao').value = q1.Formacao || "";
+                        document.getElementById('meta-escolaridade').value = q1.Escolaridade || "M\u00e9dio";
+                        document.getElementById('meta-dificuldade').value = q1.Dificuldade || "M\u00e9dio";
+                    }
+                    
+                    mostrarAlerta(data.mensagem, "success");
+                    dispararNotificacao("Extra\u00e7\u00e3o Conclu\u00edda", `O PDF foi processado e ${questoes.length} quest\u00f5es foram identificadas!`);
+                    renderizarInterface();
+                }
+            })
+            .catch(err => {
+                pararProgressoSSE();
+                exibirLoader(false);
+                resetarProgresso();
+                mostrarAlerta("Erro de rede ao processar o PDF.", "error");
+            });
+        }
+        function redimensionarImagem(file, maxDimension, callback) {
+            if (!file.type.startsWith('image/')) {
+                // Se não for imagem (ex: PDF), envia o arquivo original sem alteração
+                callback(file);
+                return;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    let width = img.width;
+                    let height = img.height;
+                    
+                    if (width > maxDimension || height > maxDimension) {
+                        if (width > height) {
+                            height = Math.round((height * maxDimension) / width);
+                            width = maxDimension;
+                        } else {
+                            width = Math.round((width * maxDimension) / height);
+                            height = maxDimension;
+                        }
+                    }
+                    
+                    const canvas = document.createElement('canvas');
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    
+                    canvas.toBlob(function(blob) {
+                        const novoNome = file.name.replace(/\.[^/.]+$/, "") + ".jpg";
+                        const novoArquivo = new File([blob], novoNome, {
+                            type: 'image/jpeg',
+                            lastModified: Date.now()
+                        });
+                        callback(novoArquivo);
+                    }, 'image/jpeg', 0.8);
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function extrairGabaritoGemini(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const provider = document.getElementById('ia-provider').value;
+            let apiKey = "";
+            let model = "";
+            let endpoint = "";
+
+            if (provider === 'gemini') {
+                apiKey = document.getElementById('gemini-api-key').value.trim();
+            } else if (provider === 'openai') {
+                apiKey = document.getElementById('openai-api-key').value.trim();
+                model = document.getElementById('openai-model').value.trim();
+                if (!apiKey) {
+                    mostrarAlerta("Chave de API da OpenAI ausente! Por favor, cole sua chave nas configurações de IA.", "error");
+                    event.target.value = "";
+                    return;
+                }
+            } else if (provider === 'deepseek') {
+                apiKey = document.getElementById('deepseek-api-key').value.trim();
+                model = document.getElementById('deepseek-model').value.trim();
+                if (!apiKey) {
+                    mostrarAlerta("Chave de API do DeepSeek ausente! Por favor, cole sua chave nas configurações de IA.", "error");
+                    event.target.value = "";
+                    return;
+                }
+                mostrarAlerta("Aviso: O DeepSeek (deepseek-chat) não oferece suporte nativo para leitura de imagens. Recomenda-se usar Google Gemini ou OpenAI para extrair o gabarito de imagens/PDFs escaneados.", "warning");
+            } else if (provider === 'ollama') {
+                endpoint = document.getElementById('ollama-endpoint').value.trim();
+                model = document.getElementById('ollama-model').value.trim();
+                if (!endpoint) {
+                    mostrarAlerta("Endpoint do Ollama ausente!", "error");
+                    event.target.value = "";
+                    return;
+                }
+            }
+
+            exibirLoader(true, `IA (${provider.toUpperCase()}) está decodificando o gabarito oficial...`);
+
+            redimensionarImagem(file, 1024, function(fileProcessado) {
+                const formData = new FormData();
+                formData.append('gabarito_pdf', fileProcessado);
+                formData.append('provedor', provider);
+                formData.append('api_key', apiKey);
+                formData.append('model', model);
+                formData.append('endpoint', endpoint);
+
+                fetch((window.API_BASE_URL || '') + '/api/gabarito-gemini', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(res => res.json())
+                .then(data => {
+                    exibirLoader(false);
+                    event.target.value = "";
+                    
+                    if (data.erro) {
+                        mostrarAlerta(data.erro, "error");
+                    } else {
+                        mostrarAlerta(data.mensagem, "success");
+                        dispararNotificacao("Gabarito Mapeado", "O gabarito oficial foi extraído e aplicado com sucesso!");
+                        Object.keys(data.gabaritos).forEach(num => {
+                            marcarLetraGabarito(parseInt(num), data.gabaritos[num], false);
+                        });
+                        renderizarInterface();
+                    }
+                })
+                .catch(err => {
+                    exibirLoader(false);
+                    event.target.value = "";
+                    mostrarAlerta(`Erro no processamento: ${err.message}`, "error");
+                    console.error("Erro de processamento de gabarito:", err);
+                });
+            });
+        }
+
+        // 3. Renderiza o Grid de Questões e Gabaritos
+        function renderizarInterface() {
+            // Oculta upload e exibe área de trabalho
+            document.getElementById('upload-box').style.display = 'none';
+            document.getElementById('workspace').style.display = 'grid';
+            document.getElementById('total-badge').innerText = `${questoes.length} Questões`;
+
+            // Lista de Questões
+            const containerQ = document.getElementById('questions-container');
+            containerQ.innerHTML = "";
+
+            // Barra de seleção
+            const selectAllBar = document.createElement('div');
+            selectAllBar.className = 'select-all-bar';
+            selectAllBar.innerHTML = `
+                <input type="checkbox" id="select-all-questions" onchange="toggleTodasQuestoes(this.checked)">
+                <label for="select-all-questions">Selecionar todas</label>
+                <span class="selected-count" id="selected-count">0 selecionadas</span>
+            `;
+            containerQ.appendChild(selectAllBar);
+            
+            questoes.forEach((q, idx) => {
+                const item = document.createElement('div');
+                item.className = `question-item ${idx === questaoAtivaIdx ? 'active' : ''}`;
+                item.onclick = (e) => {
+                    if (e.target.type === 'checkbox') return;
+                    selecionarQuestao(idx);
+                };
+                const qualidade = q.Qualidade || {};
+                const alertas = qualidade.alertas || [];
+                const qualidadeHtml = qualidade.score === undefined ? '' : `
+                    <span title="${alertas.map(alerta => alerta.mensagem).join(' • ')}" style="color: ${qualidade.status === 'aprovada' ? 'var(--success-color, #22c55e)' : '#f59e0b'};">
+                        <i class="fa-solid fa-${qualidade.status === 'aprovada' ? 'circle-check' : 'triangle-exclamation'}"></i> ${qualidade.score}%
+                    </span>`;
+                const isSelected = questoesSelecionadas.has(idx);
+                item.innerHTML = `
+                    <input type="checkbox" class="q-select-checkbox" ${isSelected ? 'checked' : ''} onchange="toggleQuestaoSelecionada(${idx}, this.checked)">
+                    <div class="q-badge">${q.Numero}</div>
+                    <div class="q-preview">
+                        <p class="q-text-prev">${q.Enunciado}</p>
+                        <div class="q-meta-prev">
+                            <span><i class="fa-solid fa-graduation-cap"></i> ${q.Disciplina}</span>
+                            <span><i class="fa-solid fa-tag"></i> ${q.Gabarito || 'Sem Gabarito'}</span>
+                            ${qualidadeHtml}
+                        </div>
+                    </div>
+                `;
+                if (isSelected) item.classList.add('selected');
+                containerQ.appendChild(item);
+            });
+
+            atualizarContadorSelecionadas();
+
+            // Grid de Gabaritos de 1 a N
+            const containerG = document.getElementById('gabaritos-container');
+            containerG.innerHTML = "";
+
+            questoes.forEach(q => {
+                const num = q.Numero;
+                const row = document.createElement('div');
+                row.className = 'gab-row';
+                row.innerHTML = `
+                    <span class="gab-number">Q. ${num}</span>
+                    <div style="display: flex; gap: 4px;">
+                        ${['A', 'B', 'C', 'D', 'E', 'X'].map(letra => `
+                            <button id="gab-btn-${num}-${letra}" class="gab-select-btn ${q.Gabarito === letra ? 'selected' : ''} ${letra === 'X' ? 'gab-cancel-btn' : ''}" onclick="marcarLetraGabarito(${num}, '${letra}')">${letra}</button>
+                        `).join('')}
+                    </div>
+                `;
+                containerG.appendChild(row);
+            });
+
+            // Seleciona a primeira questão por padrão
+            if (questoes.length > 0 && questaoAtivaIdx === -1) {
+                selecionarQuestao(0);
+            }
+        }
+
+        function toggleQuestaoSelecionada(idx, checked) {
+            if (checked) {
+                questoesSelecionadas.add(idx);
+            } else {
+                questoesSelecionadas.delete(idx);
+            }
+            const item = document.querySelectorAll('.question-item')[idx];
+            if (item) {
+                item.classList.toggle('selected', checked);
+            }
+            atualizarContadorSelecionadas();
+        }
+
+        function toggleTodasQuestoes(checked) {
+            questoesSelecionadas.clear();
+            if (checked) {
+                questoes.forEach((_, idx) => questoesSelecionadas.add(idx));
+            }
+            document.querySelectorAll('.q-select-checkbox').forEach(cb => {
+                cb.checked = checked;
+            });
+            document.querySelectorAll('.question-item').forEach(item => {
+                item.classList.toggle('selected', checked);
+            });
+            atualizarContadorSelecionadas();
+        }
+
+        function atualizarContadorSelecionadas() {
+            const countEl = document.getElementById('selected-count');
+            if (countEl) {
+                countEl.textContent = `${questoesSelecionadas.size} selecionada${questoesSelecionadas.size !== 1 ? 's' : ''}`;
+            }
+            const selectAllCb = document.getElementById('select-all-questions');
+            if (selectAllCb) {
+                selectAllCb.checked = questoesSelecionadas.size === questoes.length && questoes.length > 0;
+            }
+        }
+
+        function obterQuestoesSelecionadas() {
+            if (questoesSelecionadas.size === 0) return questoes;
+            return Array.from(questoesSelecionadas).map(idx => questoes[idx]);
+        }
+
+        // 4. Marcação e Sincronização do Gabarito
+        function marcarLetraGabarito(numQuestao, letra, atualizarUI = true) {
+            // Acha a questão
+            const questao = questoes.find(q => q.Numero === numQuestao);
+            if (questao) {
+                questao.Gabarito = letra;
+                
+                if (atualizarUI) {
+                    // Limpa seleção na linha
+                    ['A', 'B', 'C', 'D', 'E', 'X'].forEach(l => {
+                        const btn = document.getElementById(`gab-btn-${numQuestao}-${l}`);
+                        if (btn) btn.classList.remove('selected');
+                    });
+                    
+                    // Adiciona na correta
+                    const btnAtivo = document.getElementById(`gab-btn-${numQuestao}-${letra}`);
+                    if (btnAtivo) btnAtivo.classList.add('selected');
+                    
+                    // Atualiza a visualização na lista lateral
+                    const itemLateral = document.querySelector(`.question-item:nth-child(${questoes.indexOf(questao) + 1}) .q-meta-prev span:nth-child(2)`);
+                    if (itemLateral) itemLateral.innerHTML = `<i class="fa-solid fa-tag"></i> ${letra}`;
+                    
+                    // Se for a questão ativa e a aba for de visualização, atualiza o preview
+                    if (questaoAtivaIdx !== -1 && questoes[questaoAtivaIdx].Numero === numQuestao && currentEditorTab === 'visualizar') {
+                        atualizarPreview();
+                    }
+                }
+            }
+        }
+
+        function limparGabaritos() {
+            questoes.forEach(q => {
+                q.Gabarito = "";
+                ['A', 'B', 'C', 'D', 'E', 'X'].forEach(l => {
+                    const btn = document.getElementById(`gab-btn-${q.Numero}-${l}`);
+                    if (btn) btn.classList.remove('selected');
+                });
+            });
+            renderizarInterface();
+        }
+
+        // Aplica gabarito em lote offline por texto
+        function aplicarGabaritoLoteTexto() {
+            const texto = document.getElementById('gabarito-lote-input').value.trim().toUpperCase();
+            if (!texto) {
+                mostrarAlerta("Por favor, digite ou cole a sequência de gabarito antes de aplicar.", "error");
+                return;
+            }
+
+            // Método 2: Pares formatados (ex: 1-A, 2-D, 3:C, 4-X, 5-ANULADA)
+            const pares = texto.match(/(\d+)\s*[-:=]\s*([A-EX\*]|CANCELADA|ANULADA)/g);
+            if (pares) {
+                let lidos = 0;
+                pares.forEach(par => {
+                    const match = par.match(/(\d+)\s*[-:=]\s*([A-EX\*]|CANCELADA|ANULADA)/);
+                    if (match) {
+                        const num = parseInt(match[1]);
+                        let letra = match[2];
+                        if (letra === '*' || letra === 'CANCELADA' || letra === 'ANULADA') {
+                            letra = 'X';
+                        }
+                        marcarLetraGabarito(num, letra, false);
+                        lidos++;
+                    }
+                });
+                renderizarInterface();
+                mostrarAlerta(`Gabarito aplicado offline! Foram preenchidas ${lidos} questões com sucesso!`, "success");
+                return;
+            }
+
+            // Método 1: Apenas letras consecutivas (A-E, X, *, aceita espaços ou vírgulas de separação)
+            const letras = texto.replace(/[^A-EX\*]/g, '');
+            if (letras.length > 0) {
+                const total = Math.min(letras.length, questoes.length);
+                for (let i = 0; i < total; i++) {
+                    const num = questoes[i].Numero;
+                    let letra = letras[i];
+                    if (letra === '*') letra = 'X';
+                    marcarLetraGabarito(num, letra, false);
+                }
+                renderizarInterface();
+                mostrarAlerta(`Gabarito aplicado offline! Preenchidas as primeiras ${total} questões em lote!`, "success");
+            } else {
+                mostrarAlerta("Não foi possível identificar nenhuma letra de A a E, X ou par formatado no texto colado.", "error");
+            }
+        }
+
+        let currentEditorTab = 'editar';
+
+        function switchEditorTab(tab) {
+            currentEditorTab = tab;
+            const btnEditar = document.getElementById('tab-btn-editar');
+            const btnVisualizar = document.getElementById('tab-btn-visualizar');
+            const fieldsContainer = document.getElementById('editor-fields-container');
+            const previewContainer = document.getElementById('editor-preview-container');
+            
+            if (tab === 'editar') {
+                btnEditar.classList.add('active-tab');
+                btnVisualizar.classList.remove('active-tab');
+                fieldsContainer.style.display = 'flex';
+                previewContainer.style.display = 'none';
+            } else {
+                btnEditar.classList.remove('active-tab');
+                btnVisualizar.classList.add('active-tab');
+                fieldsContainer.style.display = 'none';
+                previewContainer.style.display = 'flex';
+                atualizarPreview();
+            }
+        }
+
+        function atualizarPreview() {
+            if (questaoAtivaIdx === -1) return;
+            const q = questoes[questaoAtivaIdx];
+            const previewContainer = document.getElementById('editor-preview-container');
+            if (!previewContainer) return;
+
+            // Build the metadata badges HTML
+            const banca = document.getElementById('meta-banca').value.trim() || q.Banca || "";
+            const instituicao = document.getElementById('meta-instituicao').value.trim() || q.Instituicao || "";
+            const cargo = document.getElementById('meta-cargo').value.trim() || q.Cargo || "";
+            const ano = document.getElementById('meta-ano').value.trim() || q.Ano || "";
+            const carreira = document.getElementById('meta-carreira').value.trim() || q.Carreira || "";
+            const formacao = document.getElementById('meta-formacao').value.trim() || q.Formacao || "";
+            const escolaridade = document.getElementById('meta-escolaridade').value || q.Escolaridade || "";
+            const dificuldade = document.getElementById('meta-dificuldade').value || q.Dificuldade || "";
+            
+            let badgesHtml = "";
+            if (banca) badgesHtml += `<span class="preview-badge badge-banca"><i class="fa-solid fa-building-columns"></i> ${banca}</span>`;
+            if (instituicao) badgesHtml += `<span class="preview-badge badge-instituicao"><i class="fa-solid fa-university"></i> ${instituicao}</span>`;
+            if (cargo) badgesHtml += `<span class="preview-badge badge-cargo"><i class="fa-solid fa-briefcase"></i> ${cargo}</span>`;
+            if (ano) badgesHtml += `<span class="preview-badge badge-ano"><i class="fa-solid fa-calendar"></i> ${ano}</span>`;
+            if (q.Disciplina) badgesHtml += `<span class="preview-badge badge-disciplina"><i class="fa-solid fa-graduation-cap"></i> ${q.Disciplina}</span>`;
+            if (q.Assunto) badgesHtml += `<span class="preview-badge badge-assunto"><i class="fa-solid fa-tag"></i> ${q.Assunto}</span>`;
+            if (dificuldade) badgesHtml += `<span class="preview-badge badge-dificuldade"><i class="fa-solid fa-gauge-simple-high"></i> ${dificuldade}</span>`;
+
+            // Texto Associado
+            let textoAssociadoHtml = "";
+            if (q.Texto_Associado && q.Texto_Associado.trim()) {
+                textoAssociadoHtml = `
+                    <div class="preview-texto-associado">
+                        <div class="preview-section-title"><i class="fa-solid fa-file-lines"></i> Texto Associado</div>
+                        <div class="preview-html-content">${q.Texto_Associado}</div>
+                    </div>
+                `;
+            }
+
+            // Enunciado
+            let enunciadoImagemHtml = "";
+            if (q.Enunciado_Imagem) {
+                enunciadoImagemHtml = `
+                    <div class="preview-image-wrapper">
+                        <img src="${q.Enunciado_Imagem}" class="preview-image-enunciado" alt="Imagem do Enunciado">
+                    </div>
+                `;
+            }
+            
+            // Alternatives
+            const alternativas = [
+                { letra: 'A', texto: q.Opcao_A, imagem: q.Opcao_A_Imagem },
+                { letra: 'B', texto: q.Opcao_B, imagem: q.Opcao_B_Imagem },
+                { letra: 'C', texto: q.Opcao_C, imagem: q.Opcao_C_Imagem },
+                { letra: 'D', texto: q.Opcao_D, imagem: q.Opcao_D_Imagem },
+                { letra: 'E', texto: q.Opcao_E, imagem: q.Opcao_E_Imagem }
+            ];
+
+            let alternativesHtml = "";
+            alternativas.forEach(alt => {
+                if (alt.letra === 'E' && !alt.texto && !alt.imagem) return;
+                
+                const isCorrect = q.Gabarito === alt.letra;
+                const correctClass = isCorrect ? 'correct' : '';
+                const iconHtml = isCorrect ? `<i class="fa-solid fa-circle-check preview-correct-icon"></i>` : '';
+                
+                let altImageHtml = "";
+                if (alt.imagem) {
+                    altImageHtml = `
+                        <div class="preview-alt-image-wrapper">
+                            <img src="${alt.imagem}" class="preview-image-alt" alt="Imagem Alternativa ${alt.letra}">
+                        </div>
+                    `;
+                }
+
+                alternativesHtml += `
+                    <div class="preview-alternative-item ${correctClass}">
+                        <span class="preview-alt-badge">${alt.letra}</span>
+                        <div class="preview-alt-content-body">
+                            <div class="preview-html-content">${alt.texto || ''}</div>
+                            ${altImageHtml}
+                        </div>
+                        ${iconHtml}
+                    </div>
+                `;
+            });
+
+            // Comentário
+            let comentarioHtml = "";
+            if (q.Comentario && q.Comentario.trim()) {
+                comentarioHtml = `
+                    <div class="preview-comentario-box">
+                        <div class="preview-comentario-title">
+                            <i class="fa-solid fa-robot"></i> Explicação da Questão (IA / Professor)
+                        </div>
+                        <div class="preview-html-content">${q.Comentario}</div>
+                    </div>
+                `;
+            } else {
+                comentarioHtml = `
+                    <div class="preview-comentario-box empty-comentario">
+                        <div class="preview-html-content" style="color: var(--text-muted); font-style: italic;">
+                            <i class="fa-solid fa-circle-info"></i> Nenhum comentário gerado para esta questão ainda. Use o botão "Gerar Comentários via IA" no painel da direita para enriquecê-la.
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Assemble the complete preview HTML
+            previewContainer.innerHTML = `
+                <div class="preview-card">
+                    <div class="preview-badge-row">
+                        ${badgesHtml}
+                    </div>
+                    
+                    ${textoAssociadoHtml}
+                    
+                    <div class="preview-enunciado">
+                        <div class="preview-section-title" style="margin-bottom: 8px;"><i class="fa-solid fa-question"></i> Questão ${q.Numero}</div>
+                        <div class="preview-html-content">${q.Enunciado}</div>
+                        ${enunciadoImagemHtml}
+                    </div>
+                    
+                    <div class="preview-alternatives">
+                        ${alternativesHtml}
+                    </div>
+                    
+                    ${comentarioHtml}
+                </div>
+            `;
+        }
+
+        function abrirPreviewEmNovaAba() {
+            if (questaoAtivaIdx === -1) {
+                mostrarAlerta("Selecione uma questão primeiro para visualizar.", "error");
+                return;
+            }
+            const q = questoes[questaoAtivaIdx];
+            const meta = {
+                Banca: document.getElementById('meta-banca').value.trim(),
+                Instituicao: document.getElementById('meta-instituicao').value.trim(),
+                Cargo: document.getElementById('meta-cargo').value.trim(),
+                Ano: document.getElementById('meta-ano').value.trim(),
+                Carreira: document.getElementById('meta-carreira').value.trim(),
+                Formacao: document.getElementById('meta-formacao').value.trim(),
+                Escolaridade: document.getElementById('meta-escolaridade').value,
+                Dificuldade: document.getElementById('meta-dificuldade').value
+            };
+            const dataStr = encodeURIComponent(JSON.stringify(q));
+            const metaStr = encodeURIComponent(JSON.stringify(meta));
+            window.open(`/preview?data=${dataStr}&meta=${metaStr}`, '_blank');
+        }
+
+        // 5. Seleção e Edição da Questão Ativa
+        function selecionarQuestao(idx) {
+            questaoAtivaIdx = idx;
+            
+            // Adiciona classe active
+            const itens = document.querySelectorAll('.question-item');
+            itens.forEach((el, index) => {
+                if (index === idx) el.classList.add('active');
+                else el.classList.remove('active');
+            });
+
+            const q = questoes[idx];
+            document.getElementById('question-editor').style.display = 'flex';
+            document.getElementById('edit-q-num').innerText = q.Numero;
+            
+            // Preenche campos do formulário
+            document.getElementById('edit-texto-associado').value = q.Texto_Associado || "";
+            document.getElementById('edit-enunciado').value = q.Enunciado;
+            document.getElementById('edit-opcao-a').value = q.Opcao_A;
+            document.getElementById('edit-opcao-b').value = q.Opcao_B;
+            document.getElementById('edit-opcao-c').value = q.Opcao_C;
+            document.getElementById('edit-opcao-d').value = q.Opcao_D;
+            document.getElementById('edit-opcao-e').value = q.Opcao_E || "";
+            document.getElementById('edit-disciplina').value = q.Disciplina;
+            document.getElementById('edit-assunto').value = q.Assunto;
+            document.getElementById('edit-comentario').value = q.Comentario || "";
+
+            // Mostra previews de imagens se houver
+            mostrarPreviewImagem('Enunciado_Imagem', q.Enunciado_Imagem);
+            mostrarPreviewImagem('Opcao_A_Imagem', q.Opcao_A_Imagem);
+            mostrarPreviewImagem('Opcao_B_Imagem', q.Opcao_B_Imagem);
+            mostrarPreviewImagem('Opcao_C_Imagem', q.Opcao_C_Imagem);
+            mostrarPreviewImagem('Opcao_D_Imagem', q.Opcao_D_Imagem);
+            mostrarPreviewImagem('Opcao_E_Imagem', q.Opcao_E_Imagem);
+
+            // Atualiza preview se estiver na aba de visualização
+            if (currentEditorTab === 'visualizar') {
+                atualizarPreview();
+            }
+        }
+
+        function salvarQuestaoAtiva() {
+            if (questaoAtivaIdx === -1) return;
+
+            const q = questoes[questaoAtivaIdx];
+            q.Texto_Associado = document.getElementById('edit-texto-associado').value;
+            q.Enunciado = document.getElementById('edit-enunciado').value;
+            q.Opcao_A = document.getElementById('edit-opcao-a').value;
+            q.Opcao_B = document.getElementById('edit-opcao-b').value;
+            q.Opcao_C = document.getElementById('edit-opcao-c').value;
+            q.Opcao_D = document.getElementById('edit-opcao-d').value;
+            q.Opcao_E = document.getElementById('edit-opcao-e').value;
+            q.Disciplina = document.getElementById('edit-disciplina').value;
+            q.Assunto = document.getElementById('edit-assunto').value;
+            q.Comentario = document.getElementById('edit-comentario').value;
+
+            // Atualiza o texto na lista lateral em tempo real
+            const textLateral = document.querySelector(`.question-item:nth-child(${questaoAtivaIdx + 1}) .q-text-prev`);
+            if (textLateral) textLateral.innerText = q.Enunciado;
+            
+            const disciplinaLateral = document.querySelector(`.question-item:nth-child(${questaoAtivaIdx + 1}) .q-meta-prev span:nth-child(1)`);
+            if (disciplinaLateral) disciplinaLateral.innerHTML = `<i class="fa-solid fa-graduation-cap"></i> ${q.Disciplina}`;
+        }
+
+        // --- FUNÇÕES DE EDIÇÃO E FORMATAÇÃO HTML ---
+        
+        function formatarTexto(textareaId, tag) {
+            const el = document.getElementById(textareaId);
+            if (!el) return;
+            
+            const start = el.selectionStart;
+            const end = el.selectionEnd;
+            const text = el.value;
+            const selectedText = text.substring(start, end);
+            
+            let insertion = "";
+            if (tag === 'bold') {
+                insertion = `<strong>${selectedText || 'Texto em Negrito'}</strong>`;
+            } else if (tag === 'italic') {
+                insertion = `<em>${selectedText || 'Texto em Itálico'}</em>`;
+            } else if (tag === 'underline') {
+                insertion = `<u>${selectedText || 'Texto Sublinhado'}</u>`;
+            } else if (tag === 'br') {
+                insertion = `<br>\n`;
+            } else if (tag === 'table') {
+                insertion = `
+<div class="table-container" style="margin: 15px 0; overflow-x: auto; width: 100%;">
+  <table style="border-collapse: collapse; width: 100%; border: 1px solid #e2e8f0; font-family: sans-serif; font-size: 14px; text-align: center;">
+    <tr style="background-color: #f8fafc; border-bottom: 2px solid #e2e8f0; font-weight: bold;">
+      <th style="padding: 10px; border: 1px solid #e2e8f0;">Coluna 1</th>
+      <th style="padding: 10px; border: 1px solid #e2e8f0;">Coluna 2</th>
+    </tr>
+    <tr style="border-bottom: 1px solid #edf2f7;">
+      <td style="padding: 10px; border: 1px solid #e2e8f0;">Dado 1</td>
+      <td style="padding: 10px; border: 1px solid #e2e8f0;">Dado 2</td>
+    </tr>
+  </table>
+</div>\n`;
+            }
+            
+            el.value = text.substring(0, start) + insertion + text.substring(end);
+            el.focus();
+            
+            // Move cursor para o fim da inserção
+            el.selectionStart = start + insertion.length;
+            el.selectionEnd = start + insertion.length;
+            
+            salvarQuestaoAtiva();
+        }
+
+        // Renumera as questões sequencialmente
+        function renumerarQuestoes() {
+            questoes.forEach((q, idx) => {
+                q.Numero = idx + 1;
+            });
+        }
+
+        // Unifica a questão ativa com a próxima questão da lista
+        function mesclarQuestaoComProxima() {
+            if (questaoAtivaIdx === -1 || questaoAtivaIdx >= questoes.length - 1) {
+                mostrarAlerta("Não há uma próxima questão para mesclar.", "error");
+                return;
+            }
+            
+            const q = questoes[questaoAtivaIdx];
+            const proxima = questoes[questaoAtivaIdx + 1];
+            
+            if (!confirm(`Deseja mesclar a Questão ${q.Numero} com a Questão ${proxima.Numero}?`)) return;
+            
+            // Unifica Enunciados
+            q.Enunciado = q.Enunciado + "<br><br>" + proxima.Enunciado;
+            
+            // Se a próxima tiver texto associado e a atual não, herda
+            if (proxima.Texto_Associado && !q.Texto_Associado) {
+                q.Texto_Associado = proxima.Texto_Associado;
+            }
+            
+            // Se a atual não tiver alternativas preenchidas, herda da próxima
+            if (!q.Opcao_A && proxima.Opcao_A) q.Opcao_A = proxima.Opcao_A;
+            if (!q.Opcao_B && proxima.Opcao_B) q.Opcao_B = proxima.Opcao_B;
+            if (!q.Opcao_C && proxima.Opcao_C) q.Opcao_C = proxima.Opcao_C;
+            if (!q.Opcao_D && proxima.Opcao_D) q.Opcao_D = proxima.Opcao_D;
+            if (!q.Opcao_E && proxima.Opcao_E) q.Opcao_E = proxima.Opcao_E;
+            
+            // Herda imagens de enunciados se aplicável
+            if (proxima.Enunciado_Imagem && !q.Enunciado_Imagem) {
+                q.Enunciado_Imagem = proxima.Enunciado_Imagem;
+            }
+            
+            // Remove a próxima da lista
+            questoes.splice(questaoAtivaIdx + 1, 1);
+            
+            renumerarQuestoes();
+            renderizarInterface();
+            selecionarQuestao(questaoAtivaIdx);
+            
+            mostrarAlerta("Questões mescladas com sucesso!", "success");
+        }
+
+        // Divide a questão ativa em duas com base em uma alternativa de corte
+        function dividirQuestaoAtiva() {
+            if (questaoAtivaIdx === -1) return;
+            const q = questoes[questaoAtivaIdx];
+            
+            const letraCorte = prompt("Deseja extrair as alternativas para criar uma nova questão?\nDigite a letra a partir da qual as alternativas serão cortadas e movidas para a nova questão (A, B, C, D ou E):");
+            if (!letraCorte) return;
+            
+            const letra = letraCorte.trim().toUpperCase();
+            if (!['A', 'B', 'C', 'D', 'E'].includes(letra)) {
+                mostrarAlerta("Opção inválida! Digite uma letra de A a E.", "error");
+                return;
+            }
+            
+            // Cria a cópia profunda da questão
+            const novaQ = JSON.parse(JSON.stringify(q));
+            novaQ.Enunciado = "Enunciado da nova questão (edite aqui)...";
+            novaQ.Comentario = "";
+            novaQ.Gabarito = "A";
+            
+            // Limpa campos de imagem da nova
+            delete novaQ.Enunciado_Imagem;
+            
+            const letras = ['A', 'B', 'C', 'D', 'E'];
+            const idxCorte = letras.indexOf(letra);
+            
+            // Move as alternativas
+            letras.forEach((l, i) => {
+                const letraOrigem = letras[idxCorte + i];
+                if (letraOrigem) {
+                    novaQ[`Opcao_${l}`] = q[`Opcao_${letraOrigem}`];
+                    novaQ[`Opcao_${l}_Imagem`] = q[`Opcao_${letraOrigem}_Imagem`];
+                    
+                    // Limpa a original
+                    q[`Opcao_${letraOrigem}`] = "";
+                    delete q[`Opcao_${letraOrigem}_Imagem`];
+                } else {
+                    novaQ[`Opcao_${l}`] = "";
+                    delete novaQ[`Opcao_${l}_Imagem`];
+                }
+            });
+            
+            // Insere logo em seguida
+            questoes.splice(questaoAtivaIdx + 1, 0, novaQ);
+            
+            renumerarQuestoes();
+            renderizarInterface();
+            selecionarQuestao(questaoAtivaIdx);
+            
+            mostrarAlerta("Questão dividida com sucesso! Nova questão inserida logo abaixo.", "success");
+        }
+
+        // Remove a questão ativa
+        function excluirQuestaoAtiva() {
+            if (questaoAtivaIdx === -1) return;
+            if (!confirm(`Tem certeza que deseja excluir permanentemente a Questão ${questoes[questaoAtivaIdx].Numero}?`)) return;
+            
+            questoes.splice(questaoAtivaIdx, 1);
+            renumerarQuestoes();
+            
+            if (questoes.length === 0) {
+                questaoAtivaIdx = -1;
+                document.getElementById('question-editor').style.display = 'none';
+            } else {
+                questaoAtivaIdx = Math.min(questaoAtivaIdx, questoes.length - 1);
+                selecionarQuestao(questaoAtivaIdx);
+            }
+            
+            renderizarInterface();
+            mostrarAlerta("Questão excluída com sucesso.", "success");
+        }
+
+        // Insere uma nova questão em branco
+        function adicionarNovaQuestao() {
+            const baseQ = questaoAtivaIdx !== -1 ? questoes[questaoAtivaIdx] : null;
+            
+            const novaQ = {
+                'Numero': baseQ ? baseQ.Numero + 1 : 1,
+                'Page_Idx': baseQ ? baseQ.Page_Idx : 0,
+                'Page_Num': baseQ ? baseQ.Page_Num : 1,
+                'Column': baseQ ? baseQ.Column : 'esquerda',
+                'Enunciado': 'Novo Enunciado da Questão...',
+                'Texto_Associado': '',
+                'Opcao_A': '',
+                'Opcao_B': '',
+                'Opcao_C': '',
+                'Opcao_D': '',
+                'Opcao_E': '',
+                'Gabarito': 'A',
+                'Disciplina': baseQ ? baseQ.Disciplina : 'Geral',
+                'Assunto': baseQ ? baseQ.Assunto : 'Geral',
+                'Banca': document.getElementById('meta-banca').value || baseQ ? baseQ.Banca : 'Banca',
+                'Instituicao': document.getElementById('meta-instituicao').value || baseQ ? baseQ.Instituicao : 'Instituição',
+                'Cargo': document.getElementById('meta-cargo').value || baseQ ? baseQ.Cargo : 'Cargo',
+                'Ano': document.getElementById('meta-ano').value || baseQ ? baseQ.Ano : '2026',
+                'Carreira': document.getElementById('meta-carreira').value || baseQ ? baseQ.Carreira : 'Geral',
+                'Formacao': document.getElementById('meta-formacao').value || baseQ ? baseQ.Formacao : 'Geral',
+                'Escolaridade': document.getElementById('meta-escolaridade').value || baseQ ? baseQ.Escolaridade : 'Médio',
+                'Dificuldade': document.getElementById('meta-dificuldade').value || baseQ ? baseQ.Dificuldade : 'Médio',
+                'Comentario': '',
+                'Video_URL': '',
+                'Tem_Alternativas': true
+            };
+            
+            if (baseQ) {
+                questoes.splice(questaoAtivaIdx + 1, 0, novaQ);
+                renumerarQuestoes();
+                renderizarInterface();
+                selecionarQuestao(questaoAtivaIdx + 1);
+            } else {
+                questoes.push(novaQ);
+                renderizarInterface();
+                selecionarQuestao(questoes.length - 1);
+            }
+            
+            mostrarAlerta("Questão inserida com sucesso!", "success");
+        }
+
+        // 6. Enriquecimento Sequencial em Lote (AJAX por questão + Barra de Progresso)
+        let canceladoLote = false;
+
+        async function iniciarComentariosLote() {
+            canceladoLote = false;
+            
+            const provider = document.getElementById('ia-provider').value;
+            let apiKey = "";
+            let model = "";
+            let endpoint = "";
+
+            if (provider === 'gemini') {
+                apiKey = document.getElementById('gemini-api-key').value.trim();
+            } else if (provider === 'openai') {
+                apiKey = document.getElementById('openai-api-key').value.trim();
+                model = document.getElementById('openai-model').value.trim();
+                if (!apiKey) {
+                    mostrarAlerta("Chave de API da OpenAI ausente! Por favor, cole sua chave nas configurações de IA.", "error");
+                    return;
+                }
+            } else if (provider === 'deepseek') {
+                apiKey = document.getElementById('deepseek-api-key').value.trim();
+                model = document.getElementById('deepseek-model').value.trim();
+                if (!apiKey) {
+                    mostrarAlerta("Chave de API do DeepSeek ausente! Por favor, cole sua chave nas configurações de IA.", "error");
+                    return;
+                }
+            } else if (provider === 'ollama') {
+                endpoint = document.getElementById('ollama-endpoint').value.trim();
+                model = document.getElementById('ollama-model').value.trim();
+                if (!endpoint) {
+                    mostrarAlerta("Endpoint do Ollama ausente!", "error");
+                    return;
+                }
+            }
+
+            // Valida se os gabaritos foram informados
+            const gabaritosFaltando = questoes.filter(q => !q.Gabarito);
+            if (gabaritosFaltando.length > 0) {
+                mostrarAlerta(`Atenção: Existem ${gabaritosFaltando.length} questões sem gabarito marcado. Por favor, preencha para gerar os comentários corretos.`, "error");
+                return;
+            }
+
+            // Exibe barra de progresso e desativa botões
+            document.getElementById('progress-box').style.display = 'flex';
+            document.getElementById('btn-comentarios-ia').disabled = true;
+            if (document.getElementById('btn-limpar-ruidos-ia')) {
+                document.getElementById('btn-limpar-ruidos-ia').disabled = true;
+            }
+            document.getElementById('btn-exportar-csv').disabled = true;
+            document.getElementById('btn-exportar-json').disabled = true;
+
+            const total = questoes.length;
+            let houveErroCritico = false;
+            let tentativasQuestao = 0;
+            
+            for (let i = 0; i < total; i++) {
+                if (canceladoLote) break;
+                
+                const q = questoes[i];
+                
+                // Se a questão já possui um comentário gerado (e não for o texto de fallback padrão), pula para a próxima!
+                if (q.Comentario && q.Comentario.trim() !== "" && !q.Comentario.startsWith("Gabarito oficial: Letra")) {
+                    continue;
+                }
+                
+                atualizarProgresso(i + 1, total, `Gerando explicações via ${provider.toUpperCase()} para a Questão ${q.Numero} de ${total}...`);
+                
+                try {
+                    const response = await fetch((window.API_BASE_URL || '') + '/api/gerar-comentario', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            questao: q,
+                            gabarito: q.Gabarito,
+                            provedor: provider,
+                            api_key: apiKey,
+                            model: model,
+                            endpoint: endpoint
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    if (data.erro) {
+                        const msgErro = data.erro.toLowerCase();
+                        
+                        // 1. Se for erro de chave de API inválida, aborta o lote imediatamente
+                        if (msgErro.includes("inválida") || msgErro.includes("invalid") || msgErro.includes("chave de api")) {
+                            houveErroCritico = true;
+                            mostrarAlerta(data.erro, "error");
+                            canceladoLote = true;
+                            break;
+                        }
+                        
+                        // 2. Se for erro de limite de cota / rate limit (Erro 429), faz pausa e re-tenta
+                        if (msgErro.includes("429") || msgErro.includes("quota") || msgErro.includes("limite de cota") || msgErro.includes("excedido")) {
+                            tentativasQuestao++;
+                            if (tentativasQuestao <= 4) {
+                                const segundosEspera = 20 * tentativasQuestao; // Backoff: 20s, 40s...
+                                atualizarProgresso(i + 1, total, `Cota excedida. Aguardando ${segundosEspera}s para re-tentar a Questão ${q.Numero}...`);
+                                await new Promise(resolve => setTimeout(resolve, segundosEspera * 1000));
+                                i--; // Retrocede o índice para tentar a mesma questão novamente
+                                continue;
+                            }
+                        }
+                        
+                        // 3. Se for qualquer outro erro (ou excedeu as 4 retentativas), grava comentário fallback e prossegue
+                        q.Comentario = `Gabarito oficial: Letra ${q.Gabarito}. Comentários da banca de concurso.`;
+                        if (questaoAtivaIdx === i) {
+                            selecionarQuestao(i);
+                        }
+                        mostrarAlerta(`Aviso: Questão ${q.Numero} falhou na IA (${data.erro}). Usando comentário padrão e continuando...`, "warning");
+                        tentativasQuestao = 0; // Reseta tentativas para a próxima questão
+                    } else {
+                        // Reseta tentativas ao obter sucesso
+                        tentativasQuestao = 0;
+                        
+                        // Atualiza a questão na memória local com o comentário gerado
+                        questoes[i] = data.questao;
+                        
+                        // Atualiza a tela se for a questão atualmente selecionada
+                        if (questaoAtivaIdx === i) {
+                            selecionarQuestao(i);
+                        }
+                    }
+                    
+                    // Pequeno intervalo entre chamadas (4 segundos para APIs na nuvem, menor 1 segundo para Ollama local)
+                    const delayMs = (provider === 'ollama') ? 1000 : 4000;
+                    if (i < total - 1 && !canceladoLote) {
+                        await new Promise(resolve => setTimeout(resolve, delayMs));
+                    }
+                } catch (err) {
+                    // Quedas de rede temporárias gravam fallback e prosseguem
+                    q.Comentario = `Gabarito oficial: Letra ${q.Gabarito}. Comentários da banca de concurso.`;
+                    if (questaoAtivaIdx === i) {
+                        selecionarQuestao(i);
+                    }
+                    mostrarAlerta(`Aviso: Questão ${q.Numero} falhou na conexão. Usando comentário padrão e continuando...`, "warning");
+                    tentativasQuestao = 0; // Reseta tentativas para a próxima questão
+                }
+            }
+
+            // Se o processo foi cancelado por erro CRÍTICO (como chave inválida), reativa os botões
+            if (canceladoLote || houveErroCritico) {
+                document.getElementById('progress-box').style.display = 'none';
+                document.getElementById('btn-comentarios-ia').disabled = false;
+                if (document.getElementById('btn-limpar-ruidos-ia')) {
+                    document.getElementById('btn-limpar-ruidos-ia').disabled = false;
+                }
+                document.getElementById('btn-exportar-csv').disabled = false;
+                document.getElementById('btn-exportar-json').disabled = false;
+                return;
+            }
+
+            // Finaliza progresso e ativa botões
+            atualizarProgresso(total, total, "Comentários ricos gerados com absoluto sucesso pela IA!");
+            setTimeout(() => {
+                document.getElementById('progress-box').style.display = 'none';
+                document.getElementById('btn-comentarios-ia').disabled = false;
+                if (document.getElementById('btn-limpar-ruidos-ia')) {
+                    document.getElementById('btn-limpar-ruidos-ia').disabled = false;
+                }
+                document.getElementById('btn-exportar-csv').disabled = false;
+                document.getElementById('btn-exportar-json').disabled = false;
+                mostrarAlerta("Perfeito! Todos os comentários e resoluções didáticas foram gerados e salvos!", "success");
+                dispararNotificacao("IA Concluída", "Todos os comentários didáticos foram gerados com sucesso!");
+            }, 3000);
+        }
+
+        async function iniciarLimpezaNoiseLote() {
+            canceladoLote = false;
+            
+            const provider = document.getElementById('ia-provider').value;
+            let apiKey = "";
+            let model = "";
+            let endpoint = "";
+
+            if (provider === 'gemini') {
+                apiKey = document.getElementById('gemini-api-key').value.trim();
+            } else if (provider === 'openai') {
+                apiKey = document.getElementById('openai-api-key').value.trim();
+                model = document.getElementById('openai-model').value.trim();
+                if (!apiKey) {
+                    mostrarAlerta("Chave de API da OpenAI ausente! Por favor, cole sua chave nas configurações de IA.", "error");
+                    return;
+                }
+            } else if (provider === 'deepseek') {
+                apiKey = document.getElementById('deepseek-api-key').value.trim();
+                model = document.getElementById('deepseek-model').value.trim();
+                if (!apiKey) {
+                    mostrarAlerta("Chave de API do DeepSeek ausente! Por favor, cole sua chave nas configurações de IA.", "error");
+                    return;
+                }
+            } else if (provider === 'ollama') {
+                endpoint = document.getElementById('ollama-endpoint').value.trim();
+                model = document.getElementById('ollama-model').value.trim();
+                if (!endpoint) {
+                    mostrarAlerta("Endpoint do Ollama ausente!", "error");
+                    return;
+                }
+            }
+
+            // Exibe barra de progresso e desativa botões
+            const progressHeaderSpan = document.querySelector('#progress-box .progress-header span');
+            if (progressHeaderSpan) {
+                progressHeaderSpan.innerText = "Limpando Ruídos com a IA...";
+            }
+            document.getElementById('progress-box').style.display = 'flex';
+            
+            const btnBroom = document.getElementById('btn-limpar-ruidos-ia');
+            if (btnBroom) btnBroom.disabled = true;
+            document.getElementById('btn-comentarios-ia').disabled = true;
+            document.getElementById('btn-exportar-csv').disabled = true;
+            document.getElementById('btn-exportar-json').disabled = true;
+
+            const questoesParaLimpar = obterQuestoesSelecionadas();
+            const total = questoesParaLimpar.length;
+
+            if (total === 0) {
+                mostrarAlerta("Nenhuma questão selecionada para limpeza.", "error");
+                document.getElementById('progress-box').style.display = 'none';
+                if (btnBroom) btnBroom.disabled = false;
+                document.getElementById('btn-comentarios-ia').disabled = false;
+                document.getElementById('btn-exportar-csv').disabled = false;
+                document.getElementById('btn-exportar-json').disabled = false;
+                return;
+            }
+
+            let houveErroCritico = false;
+            let tentativasQuestao = 0;
+            
+            // Delay adaptável para evitar rate-limiting em APIs em nuvem
+            const delayMs = (provider === 'gemini') ? 2500 : 500;
+            
+            for (let i = 0; i < total; i++) {
+                if (canceladoLote) break;
+                
+                const q = questoesParaLimpar[i];
+                
+                atualizarProgresso(i + 1, total, `Limpando ruídos via ${provider.toUpperCase()} da Questão ${q.Numero} de ${total}...`);
+                
+                try {
+                    const response = await fetch((window.API_BASE_URL || '') + '/api/refinar-questao', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            questao: q,
+                            provedor: provider,
+                            api_key: apiKey,
+                            model: model,
+                            endpoint: endpoint
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    if (data.erro) {
+                        const msgErro = data.erro.toLowerCase();
+                        
+                        // 1. Se for erro de chave de API inválida, aborta o lote imediatamente
+                        if (msgErro.includes("inválida") || msgErro.includes("invalid") || msgErro.includes("chave de api")) {
+                            houveErroCritico = true;
+                            mostrarAlerta(data.erro, "error");
+                            canceladoLote = true;
+                            break;
+                        }
+                        
+                        // 2. Se for erro de limite de cota / rate limit (Erro 429), faz pausa e re-tenta
+                        if (msgErro.includes("429") || msgErro.includes("quota") || msgErro.includes("limite de cota") || msgErro.includes("excedido")) {
+                            tentativasQuestao++;
+                            if (tentativasQuestao <= 4) {
+                                const segundosEspera = 20 * tentativasQuestao; // Backoff
+                                atualizarProgresso(i + 1, total, `Cota excedida. Aguardando ${segundosEspera}s para re-tentar a Questão ${q.Numero}...`);
+                                await new Promise(resolve => setTimeout(resolve, segundosEspera * 1000));
+                                i--; // Tenta a mesma questão novamente
+                                continue;
+                            }
+                        }
+                        
+                        // 3. Outros erros não-críticos prosseguem mantendo dados originais
+                        const idxOriginal = questoes.indexOf(q);
+                        if (questaoAtivaIdx === idxOriginal) {
+                            selecionarQuestao(idxOriginal);
+                        }
+                        tentativasQuestao = 0;
+                    } else {
+                        // Atualiza a questão na nossa lista
+                        const idxOriginal = questoes.indexOf(q);
+                        questoes[idxOriginal] = data.questao;
+                        
+                        // Recarrega o preview na lista lateral em tempo real
+                        const textLateral = document.querySelector(`.question-item:nth-child(${idxOriginal + 2}) .q-text-prev`);
+                        if (textLateral) textLateral.innerText = data.questao.Enunciado;
+                        
+                        if (questaoAtivaIdx === idxOriginal) {
+                            selecionarQuestao(idxOriginal);
+                        }
+                        tentativasQuestao = 0;
+                    }
+                    
+                    // Pausa curta entre requisições
+                    if (i < total - 1 && !canceladoLote) {
+                        await new Promise(resolve => setTimeout(resolve, delayMs));
+                    }
+                } catch (err) {
+                    const idxOriginal = questoes.indexOf(q);
+                    if (questaoAtivaIdx === idxOriginal) {
+                        selecionarQuestao(idxOriginal);
+                    }
+                    mostrarAlerta(`Aviso: Questão ${q.Numero} falhou na conexão de refinamento. Mantendo dados originais e continuando...`, "warning");
+                    tentativasQuestao = 0; 
+                }
+            }
+
+            // Restaura o título padrão da barra de progresso
+            if (progressHeaderSpan) {
+                progressHeaderSpan.innerText = "Gerando Comentários com a IA...";
+            }
+
+            // Se o processo foi cancelado por erro CRÍTICO (como chave inválida), reativa os botões
+            if (canceladoLote || houveErroCritico) {
+                document.getElementById('progress-box').style.display = 'none';
+                if (btnBroom) btnBroom.disabled = false;
+                document.getElementById('btn-comentarios-ia').disabled = false;
+                document.getElementById('btn-exportar-csv').disabled = false;
+                document.getElementById('btn-exportar-json').disabled = false;
+                return;
+            }
+
+            // Finaliza progresso e ativa botões
+            atualizarProgresso(total, total, "Limpeza de ruídos de todas as questões concluída com sucesso!");
+            setTimeout(() => {
+                document.getElementById('progress-box').style.display = 'none';
+                if (btnBroom) btnBroom.disabled = false;
+                document.getElementById('btn-comentarios-ia').disabled = false;
+                document.getElementById('btn-exportar-csv').disabled = false;
+                document.getElementById('btn-exportar-json').disabled = false;
+                mostrarAlerta("Perfeito! Todas as questões foram refinadas e limpas de ruídos!", "success");
+                dispararNotificacao("Limpeza Concluída", "Todas as questões foram limpas e refinadas com sucesso!");
+            }, 3000);
+        }
+
+        function atualizarProgresso(atual, total, mensagem) {
+            const pct = Math.round((atual / total) * 100);
+            document.getElementById('progress-percent').innerText = `${pct}%`;
+            document.getElementById('progress-bar').style.width = `${pct}%`;
+            document.getElementById('progress-status-msg').innerText = mensagem;
+        }
+
+        // 7. Salva a planilha no servidor e baixa diretamente no navegador
+        function exportarEBaixarCSV() {
+            // Coleta e aplica em lote os metadados gerais da prova em todas as questões antes de exportar
+            const banca = document.getElementById('meta-banca').value.trim();
+            const instituicao = document.getElementById('meta-instituicao').value.trim();
+            const cargo = document.getElementById('meta-cargo').value.trim();
+            const ano = document.getElementById('meta-ano').value.trim();
+            const carreira = document.getElementById('meta-carreira').value.trim();
+            const formacao = document.getElementById('meta-formacao').value.trim();
+            const escolaridade = document.getElementById('meta-escolaridade').value;
+            const dificuldade = document.getElementById('meta-dificuldade').value;
+
+            questoes.forEach(q => {
+                q.Banca = banca;
+                q.Instituicao = instituicao;
+                q.Cargo = cargo;
+                q.Ano = ano;
+                q.Carreira = carreira;
+                q.Formacao = formacao;
+                q.Escolaridade = escolaridade;
+                q.Dificuldade = dificuldade;
+            });
+
+            exibirLoader(true, "Montando planilha e gravando arquivo CSV de importação...");
+
+            fetch((window.API_BASE_URL || '') + '/api/exportar', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    questoes: questoes
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                exibirLoader(false);
+                if (data.erro) {
+                    mostrarAlerta(data.erro, "error");
+                } else {
+                    mostrarAlerta(data.mensagem, "success");
+                    // Baixa o arquivo gerado via navegador
+                    window.location.href = '/api/baixar-csv';
+                }
+            })
+            .catch(err => {
+                exibirLoader(false);
+                mostrarAlerta("Erro de rede ao exportar planilhas.", "error");
+            });
+        }
+
+        // 8. Salva as questões e imagens em um arquivo JSON local e baixa
+        function exportarEBaixarJSON() {
+            // Coleta e aplica em lote os metadados gerais da prova em todas as questões antes de exportar
+            const banca = document.getElementById('meta-banca').value.trim();
+            const instituicao = document.getElementById('meta-instituicao').value.trim();
+            const cargo = document.getElementById('meta-cargo').value.trim();
+            const ano = document.getElementById('meta-ano').value.trim();
+            const carreira = document.getElementById('meta-carreira').value.trim();
+            const formacao = document.getElementById('meta-formacao').value.trim();
+            const escolaridade = document.getElementById('meta-escolaridade').value;
+            const dificuldade = document.getElementById('meta-dificuldade').value;
+
+            questoes.forEach(q => {
+                q.Banca = banca;
+                q.Instituicao = instituicao;
+                q.Cargo = cargo;
+                q.Ano = ano;
+                q.Carreira = carreira;
+                q.Formacao = formacao;
+                q.Escolaridade = escolaridade;
+                q.Dificuldade = dificuldade;
+            });
+
+            exibirLoader(true, "Montando arquivo JSON e salvando questões com imagens...");
+
+            fetch((window.API_BASE_URL || '') + '/api/exportar-json', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    questoes: questoes
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                exibirLoader(false);
+                if (data.erro) {
+                    mostrarAlerta(data.erro, "error");
+                } else {
+                    mostrarAlerta(data.mensagem, "success");
+                    // Baixa o arquivo gerado via navegador
+                    window.location.href = '/api/baixar-json';
+                }
+            })
+            .catch(err => {
+                exibirLoader(false);
+                mostrarAlerta("Erro de rede ao exportar arquivo JSON.", "error");
+            });
+        }
+
+        function salvarNoBancoWordPress() {
+            if (!window.questoesExtraidas || window.questoesExtraidas.length === 0) {
+                mostrarAlerta("Nenhuma questão disponível para salvar no banco.", "warning");
+                return;
+            }
+
+            aplicarMetadadosGeraisEmLote();
+            exibirLoader(true, "Gravando questões no Banco de Questões do WordPress...");
+
+            let ajaxUrl = '/wp-admin/admin-ajax.php';
+            let nonce = '';
+
+            try {
+                if (window.parent && window.parent.extratorWPConfig) {
+                    ajaxUrl = window.parent.extratorWPConfig.ajaxurl;
+                    nonce = window.parent.extratorWPConfig.nonce;
+                }
+            } catch(e) {}
+
+            const formData = new FormData();
+            formData.append('action', 'extrator_importar_banco');
+            formData.append('nonce', nonce);
+            formData.append('questoes', JSON.stringify(window.questoesExtraidas));
+
+            fetch(ajaxUrl, {
+                method: 'POST',
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                exibirLoader(false);
+                if (data.success) {
+                    mostrarAlerta("🎉 " + data.data.message, "success");
+                    alert("🎉 " + data.data.message + "\n\nTodas as questões foram cadastradas no menu 'Banco de Questões > Todas as Questões' no seu WordPress!");
+                } else {
+                    mostrarAlerta("Erro ao salvar no WordPress: " + (data.data ? data.data.message : 'Falha'), "error");
+                }
+            })
+            .catch(err => {
+                exibirLoader(false);
+                mostrarAlerta("Erro ao comunicar com o WordPress: " + err, "error");
+            });
+        }
+
+        // Utilitários de Interface
+        function exibirLoader(mostrar, mensagem = "") {
+            const el = document.getElementById('overlay-loader');
+            if (mostrar) {
+                document.getElementById('loader-text-msg').innerText = mensagem;
+                el.style.display = 'flex';
+            } else {
+                el.style.display = 'none';
+            }
+        }
+
+        function mostrarAlerta(mensagem, tipo = "success") {
+            const alert = document.getElementById('global-alert');
+            const alertMsg = document.getElementById('alert-message');
+            
+            alert.className = `alert alert-${tipo}`;
+            alertMsg.innerText = mensagem;
+            
+            // Altera ícone
+            const icon = alert.querySelector('i');
+            if (tipo === 'success') {
+                icon.className = 'fa-solid fa-circle-check';
+            } else {
+                icon.className = 'fa-solid fa-circle-exclamation';
+            }
+            
+            alert.style.display = 'flex';
+            
+            // Oculta automaticamente após 6 segundos
+            setTimeout(() => {
+                alert.style.display = 'none';
+            }, 6000);
+        }
+
+        // Alterna a exibição dos campos de configuração baseado no provedor de IA ativo
+        function alternarCamposProvedor() {
+            const provider = document.getElementById('ia-provider').value;
+            
+            // Esconde todos os blocos de campos
+            document.querySelectorAll('.provider-fields').forEach(el => {
+                el.style.display = 'none';
+            });
+            
+            // Mostra o bloco selecionado
+            const targetDiv = document.getElementById(`fields-${provider}`);
+            if (targetDiv) {
+                targetDiv.style.display = 'block';
+            }
+
+            // Sincroniza automaticamente o provedor de segmentação com o provedor principal selecionado
+            const segProvEl = document.getElementById('seg-provider');
+            if (segProvEl) {
+                segProvEl.value = provider;
+                if (typeof alternarSegProvider === 'function') {
+                    alternarSegProvider();
+                }
+            }
+        }
+
+        let aquecerIaTimeout = null;
+        function aquecerIaLocal() {
+            if (aquecerIaTimeout) clearTimeout(aquecerIaTimeout);
+            aquecerIaTimeout = setTimeout(() => {
+                const provider = document.getElementById('ia-provider').value;
+                if (provider === 'ollama') {
+                    const endpoint = document.getElementById('ollama-endpoint').value.trim();
+                    const model = document.getElementById('ollama-model').value.trim();
+                    if (!model) return;
+                    
+                    fetch((window.API_BASE_URL || '') + '/api/aquecer-ia', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            provedor: provider,
+                            model: model,
+                            endpoint: endpoint
+                        })
+                    }).catch(err => console.error("Erro no warm-up da IA:", err));
+                }
+            }, 1000); // 1 segundo de debounce
+        }
+
+        // Salva as chaves de API e configurações de cada provedor separadamente no localStorage
+        function salvarConfigIaLocal() {
+            const provider = document.getElementById('ia-provider').value;
+            localStorage.setItem("ia_provider", provider);
+            
+            const geminiKey = document.getElementById('gemini-api-key').value.trim();
+            localStorage.setItem("gemini_api_key", geminiKey);
+            
+            const openaiKey = document.getElementById('openai-api-key').value.trim();
+            localStorage.setItem("openai_api_key", openaiKey);
+            
+            const openaiModel = document.getElementById('openai-model').value.trim();
+            localStorage.setItem("openai_model", openaiModel);
+            
+            const deepseekKey = document.getElementById('deepseek-api-key').value.trim();
+            localStorage.setItem("deepseek_api_key", deepseekKey);
+            
+            const deepseekModel = document.getElementById('deepseek-model').value.trim();
+            localStorage.setItem("deepseek_model", deepseekModel);
+            
+            const ollamaEndpoint = document.getElementById('ollama-endpoint').value.trim();
+            localStorage.setItem("ollama_endpoint", ollamaEndpoint);
+            
+            const ollamaModel = document.getElementById('ollama-model').value.trim();
+            localStorage.setItem("ollama_model", ollamaModel);
+
+            // Persiste também as opções de segmentação/OCR
+            localStorage.setItem("usar_ia_segmentar", document.getElementById('usar-ia-segmentar').checked);
+            localStorage.setItem("usar_ocr", document.getElementById('usar-ocr').checked);
+            localStorage.setItem("seg_provider", document.getElementById('seg-provider').value);
+            localStorage.setItem("seg_model", document.getElementById('seg-model').value.trim());
+            localStorage.setItem("seg_endpoint", document.getElementById('seg-endpoint').value.trim());
+
+            // Dispara o aquecimento da IA
+            aquecerIaLocal();
+        }
+
+
+
+        // Upload de Imagens no painel e codificação em Base64
+        function uploadImagemCampo(event, campoDestino) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const base64Data = e.target.result;
+                if (questaoAtivaIdx !== -1) {
+                    const q = questoes[questaoAtivaIdx];
+                    q[campoDestino] = base64Data;
+                    
+                    mostrarPreviewImagem(campoDestino, base64Data);
+                    salvarQuestaoAtiva();
+                    mostrarAlerta("Imagem vinculada com sucesso a esta questão! Ela será carregada no site ao sincronizar.", "success");
+                }
+            };
+            reader.readAsDataURL(file);
+            // Limpa o valor para permitir re-upload da mesma imagem se necessário
+            event.target.value = "";
+        }
+
+        function mostrarPreviewImagem(campo, base64Data) {
+            const prefix = campo.toLowerCase().replace('_imagem', '').replace('opcao_', 'opcao-');
+            const previewDiv = document.getElementById(`${prefix}-img-preview`);
+            if (previewDiv) {
+                if (base64Data) {
+                    previewDiv.style.display = 'flex';
+                    previewDiv.style.alignItems = 'center';
+                    previewDiv.querySelector('img').src = base64Data;
+                } else {
+                    previewDiv.style.display = 'none';
+                    previewDiv.querySelector('img').src = '';
+                }
+            }
+        }
+
+        function removerImagemCampo(campo) {
+            if (questaoAtivaIdx !== -1) {
+                const q = questoes[questaoAtivaIdx];
+                delete q[campo];
+                mostrarPreviewImagem(campo, null);
+                salvarQuestaoAtiva();
+                mostrarAlerta("Imagem removida deste campo.", "success");
+            }
+        }
+
+
+
+        // Gera e copia o gabarito formatado em lote para o clipboard
+        function copiarGabaritoParaClipboard() {
+            const respostas = questoes
+                .map(q => q.Gabarito ? `${q.Numero}-${q.Gabarito}` : null)
+                .filter(val => val !== null);
+                
+            if (respostas.length === 0) {
+                mostrarAlerta("Não há nenhum gabarito preenchido na tela para copiar.", "error");
+                return;
+            }
+            
+            const textoGabarito = respostas.join(", ");
+            
+            navigator.clipboard.writeText(textoGabarito)
+                .then(() => {
+                    mostrarAlerta("Gabarito copiado para a área de transferência! Cole no bloco de notas ou use para restaurar.", "success");
+                })
+                .catch(err => {
+                    // Fallback para navegadores antigos ou sem permissões diretas
+                    const tempInput = document.createElement("input");
+                    tempInput.value = textoGabarito;
+                    document.body.appendChild(tempInput);
+                    tempInput.select();
+                    document.execCommand("copy");
+                    document.body.removeChild(tempInput);
+                    mostrarAlerta("Gabarito copiado com sucesso para a área de transferência!", "success");
+                });
+        }
+
+        // Reproduz um sinal sonoro de carrilhão usando Web Audio API (100% offline e sem arquivos de áudio)
+        function tocarSomSucesso() {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                
+                // Nota 1 (C5 - 523.25 Hz)
+                const osc1 = audioCtx.createOscillator();
+                const gain1 = audioCtx.createGain();
+                osc1.type = 'sine';
+                osc1.frequency.setValueAtTime(523.25, audioCtx.currentTime);
+                gain1.gain.setValueAtTime(0.08, audioCtx.currentTime);
+                gain1.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+                osc1.connect(gain1);
+                gain1.connect(audioCtx.destination);
+                osc1.start();
+                osc1.stop(audioCtx.currentTime + 0.3);
+                
+                // Nota 2 (E5 - 659.25 Hz) com pequeno atraso
+                setTimeout(() => {
+                    const osc2 = audioCtx.createOscillator();
+                    const gain2 = audioCtx.createGain();
+                    osc2.type = 'sine';
+                    osc2.frequency.setValueAtTime(659.25, audioCtx.currentTime);
+                    gain2.gain.setValueAtTime(0.08, audioCtx.currentTime);
+                    gain2.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4);
+                    osc2.connect(gain2);
+                    gain2.connect(audioCtx.destination);
+                    osc2.start();
+                    osc2.stop(audioCtx.currentTime + 0.4);
+                }, 140);
+            } catch (e) {
+                console.error("Não foi possível tocar o som de sucesso:", e);
+            }
+        }
+
+        // Dispara uma notificação nativa do sistema e toca o aviso sonoro
+        function dispararNotificacao(titulo, mensagem) {
+            tocarSomSucesso();
+            
+            if ('Notification' in window && Notification.permission === 'granted') {
+                try {
+                    new Notification(titulo, {
+                        body: mensagem,
+                        icon: '/favicon.ico'
+                    });
+                } catch (e) {
+                    console.warn("Falha ao abrir notificação do sistema:", e);
+                }
+            }
+        }
+
+        // Carrega as chaves salvas ao iniciar a página
+        document.addEventListener("DOMContentLoaded", () => {
+            // Solicita permissão para notificações nativas do sistema
+            if ('Notification' in window && Notification.permission === 'default') {
+                Notification.requestPermission();
+            }
+
+            const savedProvider = localStorage.getItem("ia_provider");
+            if (savedProvider && document.getElementById('ia-provider')) {
+                document.getElementById('ia-provider').value = savedProvider;
+            }
+            
+            const savedKey = localStorage.getItem("gemini_api_key");
+            if (savedKey && document.getElementById('gemini-api-key')) {
+                document.getElementById('gemini-api-key').value = savedKey;
+            }
+
+            const savedOpenaiKey = localStorage.getItem("openai_api_key");
+            if (savedOpenaiKey && document.getElementById('openai-api-key')) {
+                document.getElementById('openai-api-key').value = savedOpenaiKey;
+            }
+            
+            const savedOpenaiModel = localStorage.getItem("openai_model");
+            if (savedOpenaiModel && document.getElementById('openai-model')) {
+                document.getElementById('openai-model').value = savedOpenaiModel;
+            }
+            
+            const savedDeepseekKey = localStorage.getItem("deepseek_api_key");
+            if (savedDeepseekKey && document.getElementById('deepseek-api-key')) {
+                document.getElementById('deepseek-api-key').value = savedDeepseekKey;
+            }
+            
+            const savedDeepseekModel = localStorage.getItem("deepseek_model");
+            if (savedDeepseekModel && document.getElementById('deepseek-model')) {
+                document.getElementById('deepseek-model').value = savedDeepseekModel;
+            }
+            
+            const savedOllamaEndpoint = localStorage.getItem("ollama_endpoint");
+            if (savedOllamaEndpoint && document.getElementById('ollama-endpoint')) {
+                document.getElementById('ollama-endpoint').value = savedOllamaEndpoint;
+            }
+            
+            const savedOllamaModel = localStorage.getItem("ollama_model");
+            if (savedOllamaModel && document.getElementById('ollama-model')) {
+                document.getElementById('ollama-model').value = savedOllamaModel;
+            }
+
+            // Recupera configurações do segmentador e OCR
+            const savedUsarIaSeg = localStorage.getItem("usar_ia_segmentar") === 'true';
+            if (document.getElementById('usar-ia-segmentar')) {
+                document.getElementById('usar-ia-segmentar').checked = savedUsarIaSeg;
+                toggleIaSegmentarConfig();
+            }
+            const savedUsarOcr = localStorage.getItem("usar_ocr") === 'true';
+            if (document.getElementById('usar-ocr')) {
+                document.getElementById('usar-ocr').checked = savedUsarOcr;
+            }
+            const savedSegProvider = localStorage.getItem("seg_provider");
+            if (savedSegProvider && document.getElementById('seg-provider')) {
+                document.getElementById('seg-provider').value = savedSegProvider;
+                alternarSegProvider();
+            }
+            const savedSegModel = localStorage.getItem("seg_model");
+            if (savedSegModel && document.getElementById('seg-model')) {
+                document.getElementById('seg-model').value = savedSegModel;
+            }
+            const savedSegEndpoint = localStorage.getItem("seg_endpoint");
+            if (savedSegEndpoint && document.getElementById('seg-endpoint')) {
+                document.getElementById('seg-endpoint').value = savedSegEndpoint;
+            }
+            
+            // Alinha a exibição visual dos campos com o provedor carregado
+            alternarCamposProvedor();
+            
+            // Dispara o pré-aquecimento do Ollama na inicialização se aplicável
+            aquecerIaLocal();
+        });
+    </script>
+</body>
+</html>
