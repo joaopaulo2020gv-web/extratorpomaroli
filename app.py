@@ -114,6 +114,22 @@ def worker_processar_lotes():
                     item["status"] = "concluido"
                     lote["total_questoes_extraidas"] += len(questoes)
                     
+                    # Envio Automático para o Banco de Dados do WordPress
+                    wp_site_url = lote.get("wp_site_url")
+                    if wp_site_url and len(questoes) > 0:
+                        try:
+                            import json, requests
+                            endpoint_wp = wp_site_url.rstrip("/") + "/wp-admin/admin-ajax.php"
+                            print(f"[+] Enviando {len(questoes)} questões automaticamente para o WordPress em: {endpoint_wp}")
+                            res = requests.post(endpoint_wp, data={
+                                "action": "extrator_importar_banco_auto",
+                                "secret": "extrator_pomaroli_secret_key_2026",
+                                "questoes": json.dumps(questoes)
+                            }, timeout=30)
+                            print(f"[+] Resposta do WordPress: {res.text}")
+                        except Exception as err_wp:
+                            print(f"[-] Erro ao enviar questões automaticamente para o WordPress: {err_wp}")
+                    
                 except Exception as ex_item:
                     item["status"] = "erro"
                     item["erro"] = str(ex_item)
@@ -593,6 +609,7 @@ def lote_upload():
         endpoint = request.form.get('endpoint', '').strip()
         usar_ocr = request.form.get('usar_ocr', 'false').lower() == 'true'
         refinar_todas = request.form.get('refinar_todas', 'false').lower() == 'true'
+        wp_site_url = request.form.get('wp_site_url', '').strip()
         
         arquivos_lote = []
         for idx, file in enumerate(files):
@@ -625,6 +642,7 @@ def lote_upload():
             "endpoint": endpoint,
             "usar_ocr": usar_ocr,
             "refinar_todas": refinar_todas,
+            "wp_site_url": wp_site_url,
             "arquivos": arquivos_lote,
             "total_arquivos": len(arquivos_lote),
             "total_questoes_extraidas": 0,
