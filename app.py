@@ -37,6 +37,30 @@ DADOS_MEMORIA = {
 # Gerenciamento de Fila de Lotes (Background Tasks)
 DADOS_LOTES = {}
 FILA_LOTES = Queue()
+ARQUIVO_LOTES_DB = os.path.join(app.config['UPLOAD_FOLDER'], 'uploads_lotes', 'lotes_db.json')
+
+def salvar_lotes_disk():
+    """Salva o estado atual dos lotes em arquivo JSON em disco para persistir entre reinícios do servidor."""
+    try:
+        os.makedirs(os.path.dirname(ARQUIVO_LOTES_DB), exist_ok=True)
+        with open(ARQUIVO_LOTES_DB, 'w', encoding='utf-8') as f:
+            json.dump(DADOS_LOTES, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"[-] Erro ao salvar lotes em disco: {e}")
+
+def carregar_lotes_disk():
+    """Carrega lotes salvos previamente em disco no arranque da aplicação."""
+    global DADOS_LOTES
+    try:
+        if os.path.exists(ARQUIVO_LOTES_DB):
+            with open(ARQUIVO_LOTES_DB, 'r', encoding='utf-8') as f:
+                DADOS_LOTES = json.load(f)
+                print(f"[+] {len(DADOS_LOTES)} lotes carregados do disco.")
+    except Exception as e:
+        print(f"[-] Erro ao carregar lotes do disco: {e}")
+
+# Carrega os lotes ao iniciar o app
+carregar_lotes_disk()
 
 def worker_processar_lotes():
     """Worker assíncrono que consome lotes de PDFs da fila e executa extração + IA."""
@@ -50,6 +74,7 @@ def worker_processar_lotes():
             lote = DADOS_LOTES[batch_id]
             lote["status"] = "processando"
             lote["inicio"] = time.time()
+            salvar_lotes_disk()
             
             for item in lote["arquivos"]:
                 if lote.get("cancelado"):
@@ -57,6 +82,7 @@ def worker_processar_lotes():
                     continue
                     
                 item["status"] = "processando"
+                salvar_lotes_disk()
                 caminho_pdf = item["caminho"]
                 
                 try:
@@ -71,6 +97,7 @@ def worker_processar_lotes():
                     if not texto:
                         item["status"] = "erro"
                         item["erro"] = "Falha ao extrair texto do PDF. O arquivo pode estar corrompido ou ser imagem sem OCR."
+                        salvar_lotes_disk()
                         continue
                         
                     questoes = extrator.parsear_questoes_local(texto)
@@ -113,29 +140,56 @@ def worker_processar_lotes():
                     item["total_questoes"] = len(questoes)
                     item["status"] = "concluido"
                     lote["total_questoes_extraidas"] += len(questoes)
+                    salvar_lotes_disk()
                     
-                    # Envio Automático para o Banco de Dados do WordPress
+                    # Envio Automático robusto para o Banco de Dados do WordPress (com User-Agent e Chunking)
                     wp_site_url = lote.get("wp_site_url")
                     if wp_site_url and len(questoes) > 0:
                         try:
                             import json, requests
                             endpoint_wp = wp_site_url.rstrip("/") + "/wp-admin/admin-ajax.php"
                             print(f"[+] Enviando {len(questoes)} questões automaticamente para o WordPress em: {endpoint_wp}")
-                            res = requests.post(endpoint_wp, data={
-                                "action": "extrator_importar_banco_auto",
-                                "secret": "extrator_pomaroli_secret_key_2026",
-                                "questoes": json.dumps(questoes)
-                            }, timeout=30)
-                            print(f"[+] Resposta do WordPress: {res.text}")
+                            
+                            headers = {
+                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 ExtratorPomaroli/2.9',
+                                'Accept': 'application/json, text/plain, */*'
+                            }
+                            
+                            # Envia em blocos de 10 questões por requisição HTTP para evitar bloqueios ou timeouts
+                            chunk_size = 10
+                            total_enviadas = 0
+                            status_respostas = []
+                            
+                            for i in range(0, len(questoes), chunk_size):
+                                chunk = questoes[i:i + chunk_size]
+                                payload = {
+                                    "action": "extrator_importar_banco_auto",
+                                    "secret": "extrator_pomaroli_secret_key_2026",
+                                    "questoes": json.dumps(chunk)
+                                }
+                                res = requests.post(endpoint_wp, data=payload, headers=headers, timeout=60)
+                                status_respostas.append(f"Bloco {i//chunk_size + 1}: HTTP {res.status_code} - {res.text[:80]}")
+                                if res.status_code == 200:
+                                    total_enviadas += len(chunk)
+                            
+                            lote["wp_import_status"] = "sucesso" if total_enviadas > 0 else "falha"
+                            lote["wp_import_mensagem"] = f"{total_enviadas}/{len(questoes)} enviadas. " + " | ".join(status_respostas)
+                            lote["wp_import_timestamp"] = time.time()
+                            print(f"[+] Auto-Import WordPress: {lote['wp_import_mensagem']}")
                         except Exception as err_wp:
+                            lote["wp_import_status"] = "erro"
+                            lote["wp_import_mensagem"] = str(err_wp)
+                            lote["wp_import_timestamp"] = time.time()
                             print(f"[-] Erro ao enviar questões automaticamente para o WordPress: {err_wp}")
                     
                 except Exception as ex_item:
                     item["status"] = "erro"
                     item["erro"] = str(ex_item)
+                    salvar_lotes_disk()
                     
             lote["status"] = "concluido" if not lote.get("cancelado") else "cancelado"
             lote["fim"] = time.time()
+            salvar_lotes_disk()
             FILA_LOTES.task_done()
             
         except Exception as e:
@@ -722,9 +776,20 @@ def lote_listar():
             "batch_id": b_id,
             "status": lote["status"],
             "total_arquivos": lote["total_arquivos"],
-            "total_questoes_extraidas": lote["total_questoes_extraidas"]
+            "total_questoes_extraidas": lote["total_questoes_extraidas"],
+            "wp_import_status": lote.get("wp_import_status"),
+            "wp_import_mensagem": lote.get("wp_import_mensagem")
         })
     return jsonify({"lotes": lista})
+
+@app.route('/api/lote/ultimo', methods=['GET'])
+def lote_ultimo():
+    """Retorna o lote mais recente para restauração automática no frontend."""
+    if not DADOS_LOTES:
+        return jsonify({"erro": "Nenhum lote recente encontrado."}), 404
+    ultimo_id = list(DADOS_LOTES.keys())[-1]
+    return lote_status(ultimo_id)
+
 
 
 def abrir_navegador():
