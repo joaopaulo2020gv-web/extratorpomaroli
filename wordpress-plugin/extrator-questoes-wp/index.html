@@ -2485,12 +2485,17 @@
                     const list = document.getElementById('wp-history-list');
                     if (panel && list) {
                         list.innerHTML = result.data.lotes.map(l => `
-                            <div class="wp-history-item" onclick="abrirLoteWordPress('${l.batch_id}')">
-                                <div class="wp-history-info">
+                            <div class="wp-history-item">
+                                <div class="wp-history-info" onclick="abrirLoteWordPress('${l.batch_id}')" style="cursor: pointer; flex: 1;">
                                     <strong>${l.nome_arquivo || 'PDF sem nome'}</strong>
                                     <span>${l.total} questões — ${l.timestamp}</span>
                                 </div>
-                                <div class="wp-history-status batch-status-${l.status}">${l.status === 'concluido' ? 'Concluído' : l.status}</div>
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <div class="wp-history-status batch-status-${l.status}">${l.status === 'concluido' ? 'Concluído' : l.status}</div>
+                                    <button onclick="event.stopPropagation(); excluirLoteWordPress('${l.batch_id}', '${(l.nome_arquivo || 'PDF sem nome').replace(/'/g, "\\'")}')" title="Excluir lote" style="background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: #f87171; padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; font-family: var(--font-inter);">
+                                        <i class="fa-solid fa-trash"></i>
+                                    </button>
+                                </div>
                             </div>
                         `).join('');
                         panel.style.display = 'block';
@@ -2505,6 +2510,27 @@
             const ok = await carregarLoteDoWordPress(batchId);
             if (!ok) {
                 mostrarAlerta('Erro ao carregar este lote do WordPress.', 'error');
+            }
+        }
+
+        async function excluirLoteWordPress(batchId, nomeArquivo) {
+            if (!confirm(`Deseja excluir o lote "${nomeArquivo}"? Esta ação não pode ser desfeita.`)) return;
+            if (!window.WP_AJAX_URL) return;
+            try {
+                const formData = new FormData();
+                formData.append('action', 'extrator_excluir_lote_local');
+                formData.append('batch_id', batchId);
+                const resp = await fetch(window.WP_AJAX_URL, { method: 'POST', body: formData });
+                const result = await resp.json();
+                if (result.success) {
+                    mostrarAlerta('Lote excluído com sucesso!', 'success');
+                    carregarHistoricoWordPress();
+                } else {
+                    mostrarAlerta('Erro ao excluir lote: ' + (result.data || 'Erro desconhecido'), 'error');
+                }
+            } catch (err) {
+                console.error('[WP Persist] Erro ao excluir lote:', err);
+                mostrarAlerta('Erro de conexão ao excluir lote.', 'error');
             }
         }
 
