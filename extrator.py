@@ -92,6 +92,109 @@ def normalizar_texto_pdf(texto):
     return texto
 
 
+# ==============================================================================
+# SEPARAÇÃO DE PALAVRAS COLADAS (PDF EXTRACTION)
+# ==============================================================================
+
+# Palavras-função do português (preposições, artigos, contrações, conjunções, pronomes)
+# Ordenadas por comprimento decrescente para priorizar match mais longo
+_FUNCWORDS = sorted([
+    'entretanto', 'conforme', 'enquanto', 'portanto',
+    'todavia', 'contudo', 'porque',
+    'quando', 'então',
+    'pelas', 'pelo', 'pela', 'pelos', 'numa', 'num',
+    'sobre', 'entre', 'desde', 'contra', 'até',
+    'para', 'com', 'sem', 'sob',
+    'nos', 'nas', 'dos', 'das', 'aos', 'no', 'na', 'do', 'da', 'ao',
+    'que', 'se', 'ou', 'mas', 'pois', 'não', 'também',
+    'por', 'em',
+    'um', 'uma', 'de', 'os', 'as',
+    'seu', 'sua', 'seus', 'suas', 'nosso', 'nossa',
+    'isto', 'isso', 'este', 'esta', 'esse', 'essa',
+    'era', 'foi', 'ser', 'ter', 'são', 'está', 'tem',
+    'há', 'pode', 'deve', 'quer', 'sabe', 'vai', 'vem',
+    'mais', 'menos', 'muito', 'bem', 'mal', 'ainda',
+    'já', 'aqui', 'onde', 'sim', 'só', 'apenas',
+], key=len, reverse=True)
+
+_PADRAO_RUN = re.compile(r'[A-Z]?[a-zà-ú]{8,}')
+
+
+def _separar_run(run):
+    """Tenta separar um run de letras juntas usando palavras-função como âncoras."""
+    n = len(run)
+    ocorrencias = []
+    for fw in _FUNCWORDS:
+        fl = len(fw)
+        for i in range(n - fl + 1):
+            if run[i:i+fl].lower() == fw:
+                ocorrencias.append((i, i+fl, run[i:i+fl]))
+
+    if not ocorrencias:
+        return run
+
+    ocorrencias.sort(key=lambda x: (x[0], -(x[1]-x[0])))
+    selecionadas = []
+    ultimo_fim = -1
+    for ini, fim, palavra in ocorrencias:
+        if ini >= ultimo_fim:
+            # Rejeitar palavras-função curtas (≤2 chars) no final do run
+            if fim == n and len(palavra) <= 2:
+                continue
+            selecionadas.append((ini, fim, palavra))
+            ultimo_fim = fim
+
+    if not selecionadas:
+        return run
+
+    # Verificar fragmentos: todo fragmento de conteúdo deve ter ≥4 chars
+    # para evitar falsos positivos (ex: "nome" → "no" + "me" seria incorreto)
+    fragmentos = []
+    pos_v = 0
+    for ini, fim, _ in selecionadas:
+        if ini > pos_v:
+            fragmentos.append(run[pos_v:ini])
+        pos_v = fim
+    if pos_v < n:
+        fragmentos.append(run[pos_v:])
+    if any(0 < len(f) < 5 for f in fragmentos):
+        return run
+
+    resultado = []
+    pos = 0
+    for ini, fim, palavra in selecionadas:
+        if ini > pos:
+            resultado.append(run[pos:ini])
+        resultado.append(' ')
+        resultado.append(palavra)
+        resultado.append(' ')
+        pos = fim
+    if pos < n:
+        resultado.append(run[pos:])
+
+    resultado_str = re.sub(r'\s+', ' ', ''.join(resultado)).strip()
+    return resultado_str if resultado_str != run else run
+
+
+def separar_palavras_juntas(texto):
+    """Insere espaços em palavras coladas no texto extraído de PDF.
+
+    Detecta palavras-função (preposições, artigos, conjunções) coladas a
+    outras letras minúsculas e insere espaços ao redor delas.
+    Preserva tags HTML, números, siglas e palavras curtas.
+    """
+    if not texto or len(texto.strip()) < 3:
+        return texto
+
+    def _processar(match):
+        return _separar_run(match.group(0))
+
+    partes = re.split(r'(<[^>]+>)', texto)
+    return ''.join(
+        p if p.startswith('<') else _PADRAO_RUN.sub(_processar, p)
+        for p in partes
+    )
+
 
 def detectar_corrupcao_texto(texto):
     """Detecta se o texto extraído do PDF está corrompido (garbage text devido a codificação de fontes).
@@ -1969,8 +2072,8 @@ REGRAS:
                     'Page_Idx': page_idx,
                     'Page_Num': page_idx + 1,
                     'Column': 'vision',
-                    'Enunciado': normalizar_texto_pdf(remover_hifens_quebra_linha(str(q.get("Enunciado", "")).strip())),
-                    'Texto_Associado': normalizar_texto_pdf(remover_hifens_quebra_linha(str(q.get("Texto_Associado", "")).strip())),
+                    'Enunciado': separar_palavras_juntas(normalizar_texto_pdf(remover_hifens_quebra_linha(str(q.get("Enunciado", "")).strip()))),
+                    'Texto_Associado': separar_palavras_juntas(normalizar_texto_pdf(remover_hifens_quebra_linha(str(q.get("Texto_Associado", "")).strip()))),
                     'Opcao_A': '',
                     'Opcao_B': '',
                     'Opcao_C': '',
@@ -1997,7 +2100,7 @@ REGRAS:
                     campo = f'Opcao_{letra}'
                     texto_alt = q.get(campo) or q.get(f'opcao_{letra}') or q.get(f'Opção_{letra}') or ""
                     if texto_alt:
-                        texto_alt = normalizar_texto_pdf(remover_hifens_quebra_linha(str(texto_alt).strip()))
+                        texto_alt = separar_palavras_juntas(normalizar_texto_pdf(remover_hifens_quebra_linha(str(texto_alt).strip())))
                         # Remove prefixos como "(A)", "A.", "A)" etc.
                         pattern_prefix = rf'^\s*(?:<[^>]+>\s*)*(\({letra}\)|{letra}\.|{letra}\)|\[{letra}\])\s*(?:</[^>]+>\s*)*'
                         texto_alt = re.sub(pattern_prefix, '', texto_alt, flags=re.IGNORECASE).strip()
@@ -3340,7 +3443,7 @@ REGRAS FINAIS:
                     letra = chave.split("_")[1]
                     pattern_prefix = rf'^(\s*(?:<[^>]+>)*\s*)(\({letra}\)|{letra}\.|{letra}\)|\[{letra}\])(\s*(?:</[^>]+>)*\s*)'
                     val = re.sub(pattern_prefix, '', val, flags=re.IGNORECASE).strip()
-                q[chave] = val
+                q[chave] = separar_palavras_juntas(val)
                 
     except Exception as e:
         print(f"[-] Erro ao refinar questão {q['Numero']} via IA ({provedor.upper()}): {e}")
