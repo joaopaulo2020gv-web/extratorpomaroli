@@ -351,16 +351,33 @@
         }
 
         function renderPreview() {
+            let q, meta;
+
             const dataStr = getQueryParam('data');
-            if (!dataStr) return;
+            if (dataStr) {
+                try {
+                    q = JSON.parse(decodeURIComponent(dataStr));
+                    const metaStr = getQueryParam('meta');
+                    meta = metaStr ? JSON.parse(decodeURIComponent(metaStr)) : {};
+                } catch(e) { /* fallback below */ }
+            }
+
+            if (!q) {
+                try {
+                    q = JSON.parse(localStorage.getItem('preview_data') || 'null');
+                    meta = JSON.parse(localStorage.getItem('preview_meta') || '{}');
+                    localStorage.removeItem('preview_data');
+                    localStorage.removeItem('preview_meta');
+                } catch(e) { return; }
+            }
+
+            if (!q) return;
 
             try {
-                const q = JSON.parse(decodeURIComponent(dataStr));
                 document.getElementById('header-q-num').textContent = q.Numero || '?';
                 document.title = `Questão ${q.Numero || ''} - Pré-visualização`;
 
-                const metaStr = getQueryParam('meta');
-                const meta = metaStr ? JSON.parse(decodeURIComponent(metaStr)) : {};
+                meta = meta || {};
 
                 const banca = meta.Banca || q.Banca || "";
                 const instituicao = meta.Instituicao || q.Instituicao || "";
