@@ -20,6 +20,18 @@ app.config['UPLOAD_FOLDER'] = os.path.dirname(os.path.abspath(__file__))
 ARQUIVO_SAIDA_CSV = "questoes_importar.csv"
 ARQUIVO_SAIDA_JSON = "questoes_importar.json"
 
+# Trata requisições OPTIONS preflight do ANTES do routing do Flask.
+# Usar @app.before_request garante que OPTIONS seja respondido 200
+# antes do Flask tentar casar a URL com rotas específicas (que retornariam 405).
+@app.before_request
+def handle_preflight():
+    if request.method == 'OPTIONS':
+        response = jsonify({"status": "ok"})
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS, PUT, DELETE"
+        return response, 200
+
 # Aplica cabeçalhos CORS para permitir integração com WordPress em qualquer domínio
 @app.after_request
 def aplicar_cors(response):
@@ -27,16 +39,6 @@ def aplicar_cors(response):
     response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS, PUT, DELETE"
     return response
-
-# Trata requisições OPTIONS preflight do navegador globalmente
-@app.route('/api/<path:dummy>', methods=['OPTIONS'])
-@app.route('/<path:dummy>', methods=['OPTIONS'])
-def handle_options(dummy=None):
-    response = jsonify({"status": "ok"})
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS, PUT, DELETE"
-    return response, 200
 
 # Mantém as questões na memória temporária do servidor para o fluxo da web
 DADOS_MEMORIA = {
