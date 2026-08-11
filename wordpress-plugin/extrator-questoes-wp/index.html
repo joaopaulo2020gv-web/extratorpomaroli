@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
@@ -1455,7 +1455,7 @@
             <button id="btn-fullscreen-toggle" onclick="toggleFullscreenApp()" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #ffffff; padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s ease;">
                 <i class="fa-solid fa-expand"></i> <span>Expandir Tela</span>
             </button>
-            <span class="header-tag">Extrator Pomaroli v3.0.14</span>
+            <span class="header-tag">Extrator Pomaroli v3.0.15</span>
         </div>
     </header>
     <script>
@@ -1605,6 +1605,25 @@
                 </div>
             </div>
             <div id="wp-history-list" class="batch-files-list">
+                <!-- Gerado Dinamicamente -->
+            </div>
+        </div>
+
+        <!-- PAINEL DE HISTÓRICO DE LOTES DO SERVIDOR -->
+        <div id="server-history-panel" class="batch-tracking-panel" style="display: none; border-color: rgba(96, 165, 250, 0.3); margin-top: 20px;">
+            <div class="batch-header">
+                <div class="batch-header-left">
+                    <i class="fa-solid fa-server" style="color: #60a5fa; font-size: 20px;"></i>
+                    <div>
+                        <h3 style="margin: 0; font-family: var(--font-outfit); font-size: 16px; font-weight: 700;">Lotes Recentes no Servidor</h3>
+                        <span style="font-size: 12px; color: var(--text-muted);">PDFs e lotes processados no servidor Flask</span>
+                    </div>
+                </div>
+                <button onclick="carregarHistoricoServidor()" title="Atualizar lista de lotes" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #fff; padding: 5px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                    <i class="fa-solid fa-rotate-right"></i> Atualizar
+                </button>
+            </div>
+            <div id="server-history-list" class="batch-files-list" style="margin-top: 15px;">
                 <!-- Gerado Dinamicamente -->
             </div>
         </div>
@@ -2183,6 +2202,7 @@
                         
                         showBatchTrackingPanel(data.batch_id);
                         startBatchPolling(data.batch_id);
+                        carregarHistoricoServidor();
                     }
                 } catch (err) {
                     clearTimeout(timerId);
@@ -2366,6 +2386,8 @@
                 mostrarAlerta(`${questoes.length} questões carregadas de ${data.concluidos} PDFs!`, "success");
                 
                 salvarLoteNoWordPress(currentBatchId, questoes, data.arquivos && data.arquivos[0] ? data.arquivos[0].filename : '');
+                salvarQuestoesLocal();
+                carregarHistoricoServidor();
                 
                 localStorage.removeItem('extrator_active_batch_id');
                 currentBatchId = null;
@@ -2376,10 +2398,177 @@
             }
         }
         
-        async function recuperarLoteAtivo() {
-            if (!currentBatchId) return;
-            
+        let serverLotesCache = [];
+
+        function salvarQuestoesLocal() {
+            if (questoes && questoes.length > 0) {
+                try {
+                    localStorage.setItem('extrator_saved_questoes', JSON.stringify(questoes));
+                } catch (e) {
+                    console.warn('[LocalStorage] Falha ao salvar questões:', e);
+                }
+            }
+        }
+
+        async function carregarHistoricoServidor() {
             try {
+                const response = await fetch((window.API_BASE_URL || '') + '/api/lote/listar');
+                const data = await response.json();
+                if (data.lotes && Array.isArray(data.lotes)) {
+                    serverLotesCache = data.lotes;
+                    const panel = document.getElementById('server-history-panel');
+                    const list = document.getElementById('server-history-list');
+                    if (panel && list) {
+                        if (data.lotes.length === 0) {
+                            panel.style.display = 'none';
+                            return;
+                        }
+                        
+                        list.innerHTML = data.lotes.slice().reverse().map(l => {
+                            const nomesPdf = l.arquivos && l.arquivos.length > 0
+                                ? l.arquivos.map(a => a.filename).join(', ')
+                                : `Lote #${l.batch_id}`;
+                                
+                            const statusClass = `batch-status-${l.status}`;
+                            const statusLabel = l.status === 'concluido' ? 'Concluído' :
+                                               l.status === 'processando' ? 'Processando' :
+                                               l.status === 'na_fila' ? 'Na Fila' : l.status;
+                                               
+                            return `
+                                <div class="batch-file-row" style="flex-wrap: wrap; gap: 10px; padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                                    <div style="flex: 1; min-width: 200px;">
+                                        <div style="font-weight: 700; font-size: 13.5px; color: #fff; display: flex; align-items: center; gap: 6px;">
+                                            <i class="fa-solid fa-file-pdf" style="color: var(--primary);"></i>
+                                            <span>${nomesPdf}</span>
+                                        </div>
+                                        <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
+                                            Lote #${l.batch_id} — ${l.total_arquivos} PDF(s) — <strong>${l.total_questoes_extraidas} questões</strong>
+                                        </div>
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <span class="batch-status-badge ${statusClass}">${statusLabel}</span>
+                                        ${l.total_questoes_extraidas > 0 ? `
+                                            <button onclick="carregarLoteServidor('${l.batch_id}', false)" class="btn-view-results" style="padding: 5px 12px; font-size: 12px; border-radius: 6px; display: inline-flex;">
+                                                <i class="fa-solid fa-eye"></i> Ver Questões
+                                            </button>
+                                            <button onclick="carregarLoteServidor('${l.batch_id}', true)" class="btn-start-batch" style="padding: 5px 12px; font-size: 12px; border-radius: 6px; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.4); color: #34d399; display: inline-flex;" title="Adicionar estas questões às questões já abertas">
+                                                <i class="fa-solid fa-plus"></i> Mesclar
+                                            </button>
+                                        ` : (l.status === 'processando' || l.status === 'na_fila') ? `
+                                            <button onclick="acompanharLoteServidor('${l.batch_id}')" class="btn-view-results" style="padding: 5px 12px; font-size: 12px; border-radius: 6px; display: inline-flex;">
+                                                <i class="fa-solid fa-spinner fa-spin"></i> Acompanhar
+                                            </button>
+                                        ` : ''}
+                                        <button onclick="excluirLoteServidor('${l.batch_id}')" style="background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: #f87171; padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 12px;" title="Excluir lote do servidor">
+                                            <i class="fa-solid fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('');
+                        panel.style.display = 'block';
+                    }
+                }
+            } catch (err) {
+                console.error("Erro ao carregar historico do servidor:", err);
+            }
+        }
+
+        async function carregarLoteServidor(batchId, mesclar = false) {
+            exibirLoader(true, "Carregando questões do lote no servidor...");
+            try {
+                const response = await fetch((window.API_BASE_URL || '') + `/api/lote/status/${batchId}?incluir_questoes=true`);
+                const data = await response.json();
+                
+                let novasQuestoes = [];
+                if (data.arquivos) {
+                    data.arquivos.forEach(arq => {
+                        if (arq.questoes && arq.questoes.length > 0) {
+                            novasQuestoes = novasQuestoes.concat(arq.questoes);
+                        }
+                    });
+                }
+                
+                exibirLoader(false);
+                
+                if (novasQuestoes.length === 0) {
+                    mostrarAlerta("Nenhuma questão foi encontrada neste lote.", "warning");
+                    return;
+                }
+                
+                if (mesclar && questoes.length > 0) {
+                    const offset = questoes.length;
+                    novasQuestoes.forEach((q, idx) => {
+                        q.Numero = offset + idx + 1;
+                    });
+                    questoes = questoes.concat(novasQuestoes);
+                    mostrarAlerta(`${novasQuestoes.length} questões mescladas com sucesso! Total: ${questoes.length}`, "success");
+                } else {
+                    questoes = novasQuestoes;
+                    mostrarAlerta(`${questoes.length} questões do Lote #${batchId} carregadas!`, "success");
+                }
+                
+                salvarQuestoesLocal();
+                
+                document.getElementById('upload-box').style.display = 'none';
+                document.getElementById('batch-tracking-panel').style.display = 'none';
+                document.getElementById('parser-config-card').style.display = 'none';
+                document.getElementById('workspace').style.display = 'grid';
+                
+                renderizarInterface();
+            } catch (err) {
+                exibirLoader(false);
+                mostrarAlerta("Erro ao carregar questões do lote.", "error");
+            }
+        }
+
+        function acompanharLoteServidor(batchId) {
+            currentBatchId = batchId;
+            localStorage.setItem('extrator_active_batch_id', batchId);
+            showBatchTrackingPanel(batchId);
+            startBatchPolling(batchId);
+        }
+
+        async function excluirLoteServidor(batchId) {
+            if (!confirm(`Deseja excluir o lote #${batchId} do servidor? Esta ação não afetará suas questões abertas.`)) return;
+            try {
+                const response = await fetch((window.API_BASE_URL || '') + `/api/lote/excluir/${batchId}`, { method: 'POST' });
+                const data = await response.json();
+                if (data.mensagem) {
+                    mostrarAlerta(data.mensagem, "success");
+                    if (currentBatchId === batchId) {
+                        currentBatchId = null;
+                        localStorage.removeItem('extrator_active_batch_id');
+                        document.getElementById('batch-tracking-panel').style.display = 'none';
+                    }
+                    carregarHistoricoServidor();
+                } else {
+                    mostrarAlerta(data.erro || "Erro ao excluir lote", "error");
+                }
+            } catch (e) {
+                mostrarAlerta("Erro de rede ao excluir lote.", "error");
+            }
+        }
+
+        async function recuperarLoteAtivo() {
+            try {
+                // 1. Atualiza lista de lotes no servidor
+                await carregarHistoricoServidor();
+                
+                // 2. Verifica se há algum lote em processamento no servidor
+                if (serverLotesCache && serverLotesCache.length > 0) {
+                    const loteEmAndamento = serverLotesCache.find(l => l.status === 'processando' || l.status === 'na_fila');
+                    if (loteEmAndamento) {
+                        currentBatchId = loteEmAndamento.batch_id;
+                        localStorage.setItem('extrator_active_batch_id', currentBatchId);
+                    }
+                }
+
+                if (!currentBatchId) {
+                    recuperarQuestoesSalvasLocal();
+                    return;
+                }
+            
                 const response = await fetch((window.API_BASE_URL || '') + `/api/lote/status/${currentBatchId}`);
                 const data = await response.json();
                 
@@ -2389,6 +2578,7 @@
                     if (!carregouWP) {
                         localStorage.removeItem('extrator_active_batch_id');
                         currentBatchId = null;
+                        recuperarQuestoesSalvasLocal();
                     }
                     return;
                 }
@@ -2401,6 +2591,13 @@
                     if (data.status === 'concluido' && data.total_questoes_extraidas > 0) {
                         document.getElementById('btn-view-results').style.display = 'flex';
                         document.getElementById('btn-cancel-batch').style.display = 'none';
+                        
+                        // Se não tem questões ativas, carrega as prontas automaticamente!
+                        if (questoes.length === 0) {
+                            visualizarResultadosLote();
+                        }
+                    } else {
+                        recuperarQuestoesSalvasLocal();
                     }
                 } else {
                     startBatchPolling(currentBatchId);
@@ -2411,6 +2608,27 @@
                 if (!carregouWP) {
                     localStorage.removeItem('extrator_active_batch_id');
                     currentBatchId = null;
+                    recuperarQuestoesSalvasLocal();
+                }
+            }
+        }
+
+        function recuperarQuestoesSalvasLocal() {
+            const saved = localStorage.getItem('extrator_saved_questoes');
+            if (saved && questoes.length === 0) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        questoes = parsed;
+                        document.getElementById('upload-box').style.display = 'none';
+                        document.getElementById('batch-tracking-panel').style.display = 'none';
+                        document.getElementById('parser-config-card').style.display = 'none';
+                        document.getElementById('workspace').style.display = 'grid';
+                        renderizarInterface();
+                        mostrarAlerta(`${questoes.length} questões prontas restauradas da sua sessão!`, "success");
+                    }
+                } catch (e) {
+                    console.error("Erro ao recuperar questões salvas:", e);
                 }
             }
         }
@@ -2797,6 +3015,7 @@
 
         // 3. Renderiza o Grid de Questões e Gabaritos
         function renderizarInterface() {
+            salvarQuestoesLocal();
             // Oculta upload e exibe área de trabalho
             document.getElementById('upload-box').style.display = 'none';
             document.getElementById('workspace').style.display = 'grid';

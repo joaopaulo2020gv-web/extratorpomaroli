@@ -807,16 +807,28 @@ def lote_cancelar(batch_id):
 
 @app.route('/api/lote/listar', methods=['GET'])
 def lote_listar():
-    """Lista todos os lotes criados na sessão do servidor."""
+    """Lista todos os lotes criados na sessão do servidor com detalhes dos arquivos."""
     lista = []
     for b_id, lote in DADOS_LOTES.items():
+        resumo_arqs = []
+        for arq in lote.get("arquivos", []):
+            resumo_arqs.append({
+                "id": arq.get("id"),
+                "filename": arq.get("filename"),
+                "status": arq.get("status"),
+                "total_questoes": arq.get("total_questoes", 0),
+                "erro": arq.get("erro")
+            })
         lista.append({
             "batch_id": b_id,
             "status": lote["status"],
             "total_arquivos": lote["total_arquivos"],
-            "total_questoes_extraidas": lote["total_questoes_extraidas"],
+            "total_questoes_extraidas": lote.get("total_questoes_extraidas", 0),
             "wp_import_status": lote.get("wp_import_status"),
-            "wp_import_mensagem": lote.get("wp_import_mensagem")
+            "wp_import_mensagem": lote.get("wp_import_mensagem"),
+            "arquivos": resumo_arqs,
+            "inicio": lote.get("inicio"),
+            "fim": lote.get("fim")
         })
     return jsonify({"lotes": lista})
 
@@ -827,6 +839,15 @@ def lote_ultimo():
         return jsonify({"erro": "Nenhum lote recente encontrado."}), 404
     ultimo_id = list(DADOS_LOTES.keys())[-1]
     return lote_status(ultimo_id)
+
+@app.route('/api/lote/excluir/<batch_id>', methods=['POST', 'DELETE'])
+def lote_excluir(batch_id):
+    """Exclui um lote da memória e salva alterações em disco."""
+    if batch_id in DADOS_LOTES:
+        del DADOS_LOTES[batch_id]
+        salvar_lotes_disk()
+        return jsonify({"mensagem": f"Lote #{batch_id} excluído com sucesso."})
+    return jsonify({"erro": "Lote não encontrado."}), 404
 
 
 
