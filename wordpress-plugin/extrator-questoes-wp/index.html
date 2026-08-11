@@ -2144,7 +2144,8 @@
             formData.append('model', model);
             formData.append('endpoint', endpoint);
             formData.append('usar_ocr', usarOcr);
-            formData.append('wp_site_url', window.location.origin);
+            const wpUrl = window.location.origin || window.location.protocol + '//' + window.location.hostname || 'https://extrator.pomaroli.com.br';
+            formData.append('wp_site_url', wpUrl);
 
             // Retry com timeout para cold start do Render
             const MAX_TENTATIVAS = 3;

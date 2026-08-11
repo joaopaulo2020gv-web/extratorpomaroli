@@ -322,13 +322,13 @@ Não adicione observações, explicações extras ou cabeçalhos que não façam
             modelo_vision = model
             if not modelo_vision:
                 if provedor == "gemini":
-                    modelo_vision = "gemini-2.5-flash"
+                    modelo_vision = "gemini-2.0-flash"
                 elif provedor == "openai":
                     modelo_vision = "gpt-4o-mini"
                 elif provedor == "ollama":
                     modelo_vision = "qwen3-vl:2b"
                 else:
-                    modelo_vision = "gemini-2.5-flash"
+                    modelo_vision = "gemini-2.0-flash"
                     
             resposta = chamar_api_ia(
                 provedor=provedor,
@@ -1047,7 +1047,7 @@ def extrair_texto_pdf_colunas(caminho_pdf, ocr_provedor=None, ocr_api_key=None, 
                             
                         try:
                             # Determina modelo de OCR com base nos parâmetros ou usa padrão gemini
-                            modelo_vision = ocr_model or "gemini-2.5-flash"
+                            modelo_vision = ocr_model or "gemini-2.0-flash"
                             provedor_ocr = ocr_provedor or "gemini"
                             
                             prompt_ocr = """Você é um leitor de OCR de altíssima precisão. 
@@ -2859,7 +2859,7 @@ def chamar_api_ia(provedor, prompt, system_instruction=None, api_key=None, model
         if not chave or chave == "COLE_SUA_API_KEY_AQUI":
             raise ValueError("Chave de API do Gemini não configurada ou vazia. Por favor, obtenha uma chave no Google AI Studio e cole-a na tela.")
             
-        modelo_gemini = model if (model and model.strip() and "gemini" in model.lower()) else "gemini-2.5-flash"
+        modelo_gemini = model if (model and model.strip() and "gemini" in model.lower()) else "gemini-2.0-flash"
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{modelo_gemini}:generateContent"
         
         headers = {
