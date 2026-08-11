@@ -25,8 +25,18 @@ ARQUIVO_SAIDA_JSON = "questoes_importar.json"
 def aplicar_cors(response):
     response.headers["Access-Control-Allow-Origin"] = "*"
     response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS, PUT, DELETE"
     return response
+
+# Trata requisições OPTIONS preflight do navegador globalmente
+@app.route('/api/<path:dummy>', methods=['OPTIONS'])
+@app.route('/<path:dummy>', methods=['OPTIONS'])
+def handle_options(dummy=None):
+    response = jsonify({"status": "ok"})
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS, PUT, DELETE"
+    return response, 200
 
 # Mantém as questões na memória temporária do servidor para o fluxo da web
 DADOS_MEMORIA = {
@@ -86,6 +96,7 @@ def worker_processar_lotes():
                 caminho_pdf = item["caminho"]
                 
                 try:
+                    print(f"[LOTE] Processando arquivo: {item['filename']} (caminho: {caminho_pdf})")
                     texto = extrator.extrair_texto_pdf_colunas(
                         caminho_pdf,
                         ocr_provedor=lote.get("provedor") if lote.get("usar_ocr") else None,
@@ -95,15 +106,40 @@ def worker_processar_lotes():
                     )
                     
                     if not texto:
+                        print(f"[LOTE] ERRO: Texto vazio para {item['filename']}")
                         item["status"] = "erro"
                         item["erro"] = "Falha ao extrair texto do PDF. O arquivo pode estar corrompido ou ser imagem sem OCR."
                         salvar_lotes_disk()
                         continue
                         
+                    print(f"[LOTE] Texto extraido de {item['filename']}: {len(texto)} caracteres")
                     questoes = extrator.parsear_questoes_local(texto)
+                    print(f"[LOTE] Questoes parseadas de {item['filename']}: {len(questoes)}")
                     questoes = extrator.extrair_imagens_alternativas_pdf(caminho_pdf, questoes)
                     questoes = extrator.extrair_imagens_enunciado_pdf(caminho_pdf, questoes)
                     questoes = validar_questoes(questoes)
+                    print(f"[LOTE] Questoes finais apos validacao de {item['filename']}: {len(questoes)}")
+                    
+                    # Se nenhuma questão foi detectada, salva diagnóstico e marca como erro
+                    if len(questoes) == 0:
+                        caminho_diag = os.path.join(app.config['UPLOAD_FOLDER'], f"diagnostico_lote_{batch_id}_{item['id']}.txt")
+                        try:
+                            with open(caminho_diag, "w", encoding="utf-8") as f:
+                                f.write(f"Arquivo: {item['filename']}\n")
+                                f.write(f"Texto extraído ({len(texto)} caracteres):\n\n")
+                                f.write(texto[:5000] if texto else "(vazio)")
+                        except Exception as e_diag:
+                            print(f"[-] Erro ao salvar diagnóstico: {e_diag}")
+                        
+                        item["status"] = "erro"
+                        item["erro"] = (
+                            "Nenhuma questão foi detectada neste PDF. "
+                            "Possíveis causas: (1) O PDF é digitalizado/imagem — ative a opção 'Forçar OCR via IA' no painel de upload. "
+                            "(2) O formato de numeração das questões é diferente do padrão. "
+                            f"(3) Diagnóstico salvo em: {caminho_diag}"
+                        )
+                        salvar_lotes_disk()
+                        continue
                     
                     # Refinamento por IA Grátis (Gemini) se ativado
                     if lote.get("autocorrigir_ia"):

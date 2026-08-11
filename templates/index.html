@@ -1699,44 +1699,72 @@
                 formData.append('endpoint', endpoint);
             }
 
-            fetch((window.API_BASE_URL || '') + '/api/processar', {
-                method: 'POST',
-                body: formData
-            })
-            .then(res => res.json())
-            .then(data => {
-                pararProgressoSSE();
-                exibirLoader(false);
-                resetarProgresso();
-                if (data.erro) {
-                    mostrarAlerta(data.erro, "error");
-                } else {
-                    questoes = data.questoes;
-                    
-                    // Preenche automaticamente o formulário de metadados gerais com os dados da primeira questão extraída
-                    if (questoes.length > 0) {
-                        const q1 = questoes[0];
-                        document.getElementById('meta-banca').value = q1.Banca || "";
-                        document.getElementById('meta-instituicao').value = q1.Instituicao || "";
-                        document.getElementById('meta-cargo').value = q1.Cargo || "";
-                        document.getElementById('meta-ano').value = q1.Ano || "";
-                        document.getElementById('meta-carreira').value = q1.Carreira || "";
-                        document.getElementById('meta-formacao').value = q1.Formacao || "";
-                        document.getElementById('meta-escolaridade').value = q1.Escolaridade || "M\u00e9dio";
-                        document.getElementById('meta-dificuldade').value = q1.Dificuldade || "M\u00e9dio";
-                    }
-                    
-                    mostrarAlerta(data.mensagem, "success");
-                    dispararNotificacao("Extra\u00e7\u00e3o Conclu\u00edda", `O PDF foi processado e ${questoes.length} quest\u00f5es foram identificadas!`);
-                    renderizarInterface();
+            // Função interna de envio com timeout e retry (anti-cold-start do Render)
+            const MAX_TENTATIVAS = 3;
+            const TIMEOUT_MS = 90000; // 90 segundos por tentativa
+
+            function enviarComRetry(tentativa) {
+                if (tentativa > 1) {
+                    exibirLoader(true, `Acordando servidor (tentativa ${tentativa}/${MAX_TENTATIVAS})... O Render pode levar até 60s para despertar.`);
                 }
-            })
-            .catch(err => {
-                pararProgressoSSE();
-                exibirLoader(false);
-                resetarProgresso();
-                mostrarAlerta("Erro de rede ao processar o PDF.", "error");
-            });
+
+                const controller = new AbortController();
+                const timerId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+                fetch((window.API_BASE_URL || '') + '/api/processar', {
+                    method: 'POST',
+                    body: formData,
+                    signal: controller.signal
+                })
+                .then(res => {
+                    clearTimeout(timerId);
+                    return res.json();
+                })
+                .then(data => {
+                    pararProgressoSSE();
+                    exibirLoader(false);
+                    resetarProgresso();
+                    if (data.erro) {
+                        mostrarAlerta(data.erro, "error");
+                    } else {
+                        questoes = data.questoes;
+                        
+                        if (questoes.length > 0) {
+                            const q1 = questoes[0];
+                            document.getElementById('meta-banca').value = q1.Banca || "";
+                            document.getElementById('meta-instituicao').value = q1.Instituicao || "";
+                            document.getElementById('meta-cargo').value = q1.Cargo || "";
+                            document.getElementById('meta-ano').value = q1.Ano || "";
+                            document.getElementById('meta-carreira').value = q1.Carreira || "";
+                            document.getElementById('meta-formacao').value = q1.Formacao || "";
+                            document.getElementById('meta-escolaridade').value = q1.Escolaridade || "M\u00e9dio";
+                            document.getElementById('meta-dificuldade').value = q1.Dificuldade || "M\u00e9dio";
+                        }
+                        
+                        mostrarAlerta(data.mensagem, "success");
+                        dispararNotificacao("Extra\u00e7\u00e3o Conclu\u00edda", `O PDF foi processado e ${questoes.length} quest\u00f5es foram identificadas!`);
+                        renderizarInterface();
+                    }
+                })
+                .catch(err => {
+                    clearTimeout(timerId);
+                    if (tentativa < MAX_TENTATIVAS && (err.name === 'AbortError' || err.message?.includes('Failed to fetch') || err.message?.includes('NetworkError'))) {
+                        console.warn(`[Retry] Tentativa ${tentativa} falhou (${err.name || err.message}). Tentando novamente em 5s...`);
+                        setTimeout(() => enviarComRetry(tentativa + 1), 5000);
+                    } else {
+                        pararProgressoSSE();
+                        exibirLoader(false);
+                        resetarProgresso();
+                        let msgErro = "Erro de rede ao processar o PDF.";
+                        if (err.name === 'AbortError') {
+                            msgErro = "O servidor demorou demais para responder (timeout). Se o Render estava hibernado, tente novamente em alguns segundos.";
+                        }
+                        mostrarAlerta(msgErro, "error");
+                    }
+                });
+            }
+
+            enviarComRetry(1);
         }
         function redimensionarImagem(file, maxDimension, callback) {
             if (!file.type.startsWith('image/')) {
