@@ -3147,7 +3147,7 @@
             };
             const dataStr = encodeURIComponent(JSON.stringify(q));
             const metaStr = encodeURIComponent(JSON.stringify(meta));
-            window.open(`/preview?data=${dataStr}&meta=${metaStr}`, '_blank');
+            window.open((window.API_BASE_URL || '') + `/preview?data=${dataStr}&meta=${metaStr}`, '_blank');
         }
 
         // 5. Seleção e Edição da Questão Ativa
