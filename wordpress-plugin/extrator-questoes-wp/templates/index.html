@@ -1455,7 +1455,7 @@
             <button id="btn-fullscreen-toggle" onclick="toggleFullscreenApp()" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #ffffff; padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s ease;">
                 <i class="fa-solid fa-expand"></i> <span>Expandir Tela</span>
             </button>
-            <span class="header-tag">Extrator Pomaroli v3.0.15</span>
+            <span class="header-tag">Extrator Pomaroli v3.0.16</span>
         </div>
     </header>
     <script>
@@ -1482,7 +1482,7 @@
                 <i class="fa-solid fa-file-pdf"></i>
             </div>
             <h2>Arraste ou selecione os PDFs de Questões</h2>
-            <p>Layouts de coluna única ou dupla são processados e extraídos localmente de forma instantânea.</p>
+            <p>Faça upload de um ou múltiplos arquivos para enfileiramento e processamento assíncrono em segundo plano na nuvem.</p>
             <input type="file" id="questoes_pdf_input" class="upload-input" accept=".pdf" multiple onchange="handleFilesSelection(event.target.files)" style="display: none;">
             
             <!-- Lista de Arquivos Selecionados -->
@@ -1496,7 +1496,7 @@
                 </div>
                 <button id="btn-start-batch" class="btn-start-batch" onclick="iniciarLote()" disabled>
                     <i class="fa-solid fa-rocket"></i>
-                    <span>Iniciar Extração</span>
+                    <span>Iniciar Extração em Segundo Plano</span>
                 </button>
             </div>
         </section>
@@ -1542,22 +1542,25 @@
             </div>
         </div>
 
-        <!-- FASE 1.5: PAINEL DE ACOMPANHAMENTO DO LOTE -->
+        <!-- FASE 1.5: DASHBOARD DA FILA E PRODUÇÃO (PROCESSAMENTO EM SEGUNDO PLANO) -->
         <div id="batch-tracking-panel" class="batch-tracking-panel">
 
             <div class="batch-header">
                 <div class="batch-header-left">
-                    <i class="fa-solid fa-layer-group" style="color: var(--primary); font-size: 20px;"></i>
+                    <i class="fa-solid fa-layer-group" style="color: var(--primary); font-size: 22px;"></i>
                     <div>
-                        <h3 style="margin: 0; font-family: var(--font-outfit); font-size: 16px; font-weight: 700;">Acompanhamento do Lote</h3>
+                        <h3 style="margin: 0; font-family: var(--font-outfit); font-size: 17px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+                            <span>Painel da Fila e Produção</span>
+                            <span style="font-size: 11px; background: rgba(59,130,246,0.2); border: 1px solid rgba(59,130,246,0.4); color: #60a5fa; padding: 2px 8px; border-radius: 12px;">Nuvem Assíncrona</span>
+                        </h3>
                         <span id="batch-id-display" class="batch-id-badge" style="margin-top: 4px; display: inline-block;"></span>
                     </div>
                 </div>
                 <span id="batch-status-badge" class="batch-status-badge"></span>
             </div>
 
-            <!-- Resumo do Lote -->
-            <div class="batch-summary">
+            <!-- Resumo e Estatísticas da Fila -->
+            <div class="batch-summary" style="grid-template-columns: repeat(4, 1fr);">
                 <div class="batch-summary-item">
                     <div class="batch-summary-value" id="batch-total-files">0</div>
                     <div class="batch-summary-label">Total de PDFs</div>
@@ -1567,28 +1570,46 @@
                     <div class="batch-summary-label">Concluídos</div>
                 </div>
                 <div class="batch-summary-item">
+                    <div class="batch-summary-value" id="batch-failed-files" style="color: #f87171;">0</div>
+                    <div class="batch-summary-label">Com Erro</div>
+                </div>
+                <div class="batch-summary-item">
                     <div class="batch-summary-value" id="batch-total-questions" style="color: #60a5fa;">0</div>
                     <div class="batch-summary-label">Questões Extraídas</div>
                 </div>
             </div>
 
-            <!-- Lista de Arquivos do Lote -->
-            <div id="batch-files-list" class="batch-files-list">
-                <!-- Gerado Dinamicamente -->
+            <!-- Barra de Progresso Real Percentual -->
+            <div style="margin-bottom: 20px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; font-weight: 700; margin-bottom: 6px; color: var(--text-muted);">
+                    <span>Progresso da Fila:</span>
+                    <span id="batch-progress-percent" style="color: var(--primary);">0%</span>
+                </div>
+                <div class="progress-bar-bg" style="height: 10px; border-radius: 6px;">
+                    <div id="batch-progress-fill" class="progress-bar-fill" style="width: 0%; height: 100%; border-radius: 6px; transition: width 0.4s ease;"></div>
+                </div>
             </div>
 
-            <!-- Barra de Progresso Geral -->
-            <div class="batch-loading-bar" id="batch-loading-bar">
+            <!-- Lista de Arquivos com Status Detalhado -->
+            <div id="batch-files-list" class="batch-files-list">
+                <!-- Gerado Dinamicamente pelo JS -->
+            </div>
+
+            <!-- Indicador Animado quando processando -->
+            <div class="batch-loading-bar" id="batch-loading-bar" style="margin-top: 15px;">
                 <div class="batch-loading-bar-fill"></div>
             </div>
 
             <!-- Ações do Lote -->
             <div class="batch-actions">
                 <button id="btn-cancel-batch" class="btn-cancel-batch" onclick="cancelarLote()">
-                    <i class="fa-solid fa-times"></i> Cancelar Lote
+                    <i class="fa-solid fa-times"></i> Cancelar Fila
+                </button>
+                <button id="btn-retry-batch" class="btn-cancel-batch" onclick="tentarNovamenteLote()" style="display: none; background: rgba(245,158,11,0.15); border-color: rgba(245,158,11,0.4); color: #fbbf24;">
+                    <i class="fa-solid fa-rotate-right"></i> Tentar Novamente
                 </button>
                 <button id="btn-view-results" class="btn-view-results" onclick="visualizarResultadosLote()" style="display: none;">
-                    <i class="fa-solid fa-eye"></i> Ver Questões Extraídas
+                    <i class="fa-solid fa-eye"></i> Visualizar Questões Extraídas
                 </button>
             </div>
         </div>
@@ -2163,23 +2184,18 @@
             formData.append('model', model);
             formData.append('endpoint', endpoint);
             formData.append('usar_ocr', usarOcr);
-            const wpUrl = window.location.origin || window.location.protocol + '//' + window.location.hostname || 'https://extrator.pomaroli.com.br';
-            formData.append('wp_site_url', wpUrl);
-
-            // Retry com timeout para cold start do Render
-            const MAX_TENTATIVAS = 3;
-            const TIMEOUT_MS = 120000; // 120s por tentativa (Render cold start pode demorar)
+            const wpUrl = window.location.origin || window.location.protocol + '            const TIMEOUT_MS = 120000; // 120s por tentativa (Render cold start)
 
             async function enviarLoteComRetry(tentativa) {
                 exibirLoader(true, tentativa === 1
-                    ? `Enviando ${selectedFiles.length} PDF${selectedFiles.length > 1 ? 's' : ''} para processamento...`
-                    : `Acordando servidor (tentativa ${tentativa}/${MAX_TENTATIVAS})... Pode levar até 60s.`);
+                    ? `Enviando ${selectedFiles.length} PDF${selectedFiles.length > 1 ? 's' : ''} para a fila em segundo plano...`
+                    : `Acordando servidor no Render (tentativa ${tentativa}/${MAX_TENTATIVAS})... Pode levar até 60s.`);
 
                 const controller = new AbortController();
                 const timerId = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
                 try {
-                    const response = await fetch((window.API_BASE_URL || '') + '/api/lote/upload', {
+                    const response = await fetch((window.API_BASE_URL || '') + '/api/upload-pdf', {
                         method: 'POST',
                         body: formData,
                         signal: controller.signal
@@ -2191,17 +2207,17 @@
                     if (data.erro) {
                         mostrarAlerta(data.erro, "error");
                     } else {
-                        currentBatchId = data.batch_id;
+                        currentBatchId = data.task_id || data.batch_id;
                         localStorage.setItem('extrator_active_batch_id', currentBatchId);
                         
-                        mostrarAlerta(data.mensagem, "success");
-                        dispararNotificacao("Lote Iniciado", `${selectedFiles.length} PDFs enviados para processamento!`);
+                        mostrarAlerta(data.mensagem || `Upload concluído! Tarefa #${currentBatchId} na fila.`, "success");
+                        dispararNotificacao("Fila Iniciada", `${selectedFiles.length} PDF(s) enviados para processamento em segundo plano!`);
                         
                         selectedFiles = [];
                         renderFileList();
                         
-                        showBatchTrackingPanel(data.batch_id);
-                        startBatchPolling(data.batch_id);
+                        showBatchTrackingPanel(currentBatchId);
+                        startBatchPolling(currentBatchId);
                         carregarHistoricoServidor();
                     }
                 } catch (err) {
@@ -2212,12 +2228,12 @@
                         return enviarLoteComRetry(tentativa + 1);
                     }
                     exibirLoader(false);
-                    let msgErro = "Erro de rede ao enviar lote para processamento.";
+                    let msgErro = "Erro de rede ao enviar PDFs para a fila de processamento.";
                     if (err.name === 'AbortError') {
                         msgErro = "O servidor demorou demais para responder (timeout). O Render pode estar hibernando, tente novamente em alguns segundos.";
                     }
                     mostrarAlerta(msgErro, "error");
-                    console.error("Erro no upload do lote:", err);
+                    console.error("Erro no upload para a fila:", err);
                 }
             }
 
@@ -2227,7 +2243,7 @@
         function showBatchTrackingPanel(batchId) {
             const panel = document.getElementById('batch-tracking-panel');
             panel.style.display = 'block';
-            document.getElementById('batch-id-display').textContent = `Lote #${batchId}`;
+            document.getElementById('batch-id-display').textContent = `Tarefa #${batchId}`;
             
             panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
@@ -2237,27 +2253,31 @@
                 clearInterval(batchPollingInterval);
             }
             
+            // Polling assíncrono a cada 3 segundos (respeita fechamento de aba)
             batchPollingInterval = setInterval(async () => {
                 try {
-                    const response = await fetch((window.API_BASE_URL || '') + `/api/lote/status/${batchId}`);
+                    const response = await fetch((window.API_BASE_URL || '') + `/api/tasks/${batchId}`);
                     const data = await response.json();
                     
                     updateBatchTrackingUI(data);
                     
-                    if (data.status === 'concluido' || data.status === 'cancelado') {
+                    const isDone = data.status === 'completed' || data.status === 'concluido' || data.status === 'canceled' || data.status === 'failed' || data.status === 'erro';
+                    if (isDone) {
                         clearInterval(batchPollingInterval);
                         batchPollingInterval = null;
                         
                         document.getElementById('batch-loading-bar').style.display = 'none';
                         
-                        if (data.status === 'concluido' && data.total_questoes_extraidas > 0) {
+                        const totalQuest = data.total_questoes_extraidas || 0;
+                        if ((data.status === 'completed' || data.status === 'concluido') && totalQuest > 0) {
                             document.getElementById('btn-view-results').style.display = 'flex';
                             document.getElementById('btn-cancel-batch').style.display = 'none';
-                            dispararNotificacao("Lote Concluído", `${data.total_questoes_extraidas} questões foram extraídas com sucesso!`);
+                            document.getElementById('btn-retry-batch').style.display = 'none';
+                            dispararNotificacao("Processamento Concluído!", `${totalQuest} questões extraídas com sucesso!`);
 
-                            // Auto-salva no WordPress quando lote conclui
+                            // Auto-salva no WordPress quando concluído
                             try {
-                                const fullResp = await fetch((window.API_BASE_URL || '') + `/api/lote/status/${batchId}?incluir_questoes=true`);
+                                const fullResp = await fetch((window.API_BASE_URL || '') + `/api/tasks/${batchId}?incluir_questoes=true`);
                                 const fullData = await fullResp.json();
                                 let allQuestoes = [];
                                 if (fullData.arquivos) {
@@ -2274,71 +2294,144 @@
                             } catch (e) {
                                 console.error('[WP Persist] Erro ao auto-salvar lote concluído:', e);
                             }
+                        } else if (data.failed_files > 0 || data.erros > 0) {
+                            document.getElementById('btn-retry-batch').style.display = 'inline-flex';
                         }
                     }
                 } catch (err) {
-                    console.error("Erro ao consultar status do lote:", err);
+                    console.error("Erro no polling da tarefa:", err);
                 }
-            }, 2000);
+            }, 3000);
         }
         
         function updateBatchTrackingUI(data) {
             const statusBadge = document.getElementById('batch-status-badge');
-            statusBadge.className = `batch-status-badge batch-status-${data.status}`;
+            const stdStatus = data.status || data.raw_status || 'queued';
+            
+            const statusClassMap = {
+                'queued': 'na_fila',
+                'na_fila': 'na_fila',
+                'processing': 'processando',
+                'processando': 'processando',
+                'completed': 'concluido',
+                'concluido': 'concluido',
+                'canceled': 'cancelado',
+                'cancelado': 'cancelado',
+                'failed': 'erro',
+                'erro': 'erro'
+            };
+            
+            const rawClass = statusClassMap[stdStatus] || 'na_fila';
+            statusBadge.className = `batch-status-badge batch-status-${rawClass}`;
             
             const statusLabels = {
+                'queued': 'Na Fila',
                 'na_fila': 'Na Fila',
-                'processando': 'Processando',
+                'processing': 'Processando...',
+                'processando': 'Processando...',
+                'completed': 'Concluído',
                 'concluido': 'Concluído',
-                'cancelado': 'Cancelado'
+                'canceled': 'Cancelado',
+                'cancelado': 'Cancelado',
+                'failed': 'Erro na Fila',
+                'erro': 'Erro na Fila'
             };
-            statusBadge.textContent = statusLabels[data.status] || data.status;
+            statusBadge.textContent = statusLabels[stdStatus] || stdStatus;
             
-            document.getElementById('batch-total-files').textContent = data.total_arquivos;
-            document.getElementById('batch-completed-files').textContent = data.concluidos;
-            document.getElementById('batch-total-questions').textContent = data.total_questoes_extraidas;
+            const totalFiles = data.total_files || data.total_arquivos || 0;
+            const completedFiles = data.completed_files !== undefined ? data.completed_files : data.concluidos || 0;
+            const failedFiles = data.failed_files !== undefined ? data.failed_files : data.erros || 0;
+            const totalQuestions = data.total_questoes_extraidas || 0;
+            
+            document.getElementById('batch-total-files').textContent = totalFiles;
+            document.getElementById('batch-completed-files').textContent = completedFiles;
+            document.getElementById('batch-failed-files').textContent = failedFiles;
+            document.getElementById('batch-total-questions').textContent = totalQuestions;
+            
+            // Barra de Progresso Percentual
+            const pct = data.progress_pct !== undefined ? data.progress_pct : (totalFiles > 0 ? Math.round(((completedFiles + failedFiles) / totalFiles) * 100) : 0);
+            document.getElementById('batch-progress-percent').textContent = `${pct}%`;
+            document.getElementById('batch-progress-fill').style.width = `${pct}%`;
+            
+            // Botão tentar novamente visível se houver erros
+            if (failedFiles > 0) {
+                document.getElementById('btn-retry-batch').style.display = 'inline-flex';
+            } else {
+                document.getElementById('btn-retry-batch').style.display = 'none';
+            }
             
             const filesList = document.getElementById('batch-files-list');
-            filesList.innerHTML = data.arquivos.map(arq => {
-                const statusIcons = {
-                    'pendente': 'fa-clock',
-                    'processando': 'fa-spinner fa-spin',
-                    'concluido': 'fa-circle-check',
-                    'erro': 'fa-circle-exclamation'
-                };
-                
-                const icon = statusIcons[arq.status] || 'fa-circle';
-                const detail = arq.status === 'processando' ? 'Processando...' :
-                              arq.status === 'concluido' ? `${arq.total_questoes} questões extraídas` :
-                              arq.status === 'erro' ? arq.erro : 'Aguardando...';
-                
-                return `
-                    <div class="batch-file-row">
-                        <div class="batch-file-status-icon batch-file-status-${arq.status}">
-                            <i class="fa-solid ${icon}"></i>
+            if (data.arquivos && Array.isArray(data.arquivos)) {
+                filesList.innerHTML = data.arquivos.map(arq => {
+                    const st = arq.status || 'pendente';
+                    const statusIcons = {
+                        'pendente': 'fa-clock',
+                        'queued': 'fa-clock',
+                        'processando': 'fa-spinner fa-spin',
+                        'processing': 'fa-spinner fa-spin',
+                        'concluido': 'fa-circle-check',
+                        'completed': 'fa-circle-check',
+                        'erro': 'fa-circle-exclamation',
+                        'failed': 'fa-circle-exclamation'
+                    };
+                    
+                    const icon = statusIcons[st] || 'fa-circle';
+                    const stClass = statusClassMap[st] || 'pendente';
+                    const errMsg = arq.error_message || arq.erro;
+                    
+                    const detail = st === 'processando' || st === 'processing' ? 'Extraindo texto e questões em segundo plano...' :
+                                  st === 'concluido' || st === 'completed' ? `${arq.total_questoes} questões extraídas` :
+                                  st === 'erro' || st === 'failed' ? `<span style="color: #f87171;">${errMsg || 'Erro na extração do PDF'}</span>` : 'Aguardando worker...';
+                    
+                    return `
+                        <div class="batch-file-row" style="flex-wrap: wrap;">
+                            <div class="batch-file-status-icon batch-file-status-${stClass}">
+                                <i class="fa-solid ${icon}"></i>
+                            </div>
+                            <div class="batch-file-info" style="flex: 1; min-width: 200px;">
+                                <div class="batch-file-name">${arq.filename}</div>
+                                <div class="batch-file-detail">${detail}</div>
+                            </div>
+                            ${(st === 'concluido' || st === 'completed') ? `<div class="batch-file-questions"><i class="fa-solid fa-check-circle"></i> ${arq.total_questoes} questões</div>` : ''}
                         </div>
-                        <div class="batch-file-info">
-                            <div class="batch-file-name">${arq.filename}</div>
-                            <div class="batch-file-detail">${detail}</div>
-                        </div>
-                        ${arq.status === 'concluido' ? `<div class="batch-file-questions"><i class="fa-solid fa-check-circle"></i> ${arq.total_questoes}</div>` : ''}
-                    </div>
-                `;
-            }).join('');
+                    `;
+                }).join('');
+            }
         }
         
+        async function tentarNovamenteLote() {
+            if (!currentBatchId) return;
+            exibirLoader(true, "Reenfileirando arquivos com erro para nova tentativa...");
+            try {
+                const response = await fetch((window.API_BASE_URL || '') + `/api/tasks/${currentBatchId}/retry`, { method: 'POST' });
+                const data = await response.json();
+                exibirLoader(false);
+                if (data.erro) {
+                    mostrarAlerta(data.erro, "error");
+                } else {
+                    mostrarAlerta(data.mensagem, "success");
+                    document.getElementById('batch-loading-bar').style.display = 'block';
+                    document.getElementById('btn-retry-batch').style.display = 'none';
+                    startBatchPolling(currentBatchId);
+                }
+            } catch (e) {
+                exibirLoader(false);
+                mostrarAlerta("Erro ao tentar reenfileirar tarefa.", "error");
+            }
+        }
+
         async function cancelarLote() {
             if (!currentBatchId) return;
             
-            if (!confirm("Tem certeza que deseja cancelar o processamento deste lote?")) return;
+            if (!confirm("Tem certeza que deseja cancelar a fila de processamento deste lote?")) return;
             
             try {
-                const response = await fetch((window.API_BASE_URL || '') + `/api/lote/cancelar/${currentBatchId}`, {
-                    method: 'POST'
+                const response = await fetch((window.API_BASE_URL || '') + `/api/tasks/${currentBatchId}`, {
+                    method: 'DELETE'
                 });
                 
                 const data = await response.json();
-                mostrarAlerta(data.mensagem, "success");
+                mostrarAlerta(data.mensagem || "Fila cancelada com sucesso.", "success");
                 
                 if (batchPollingInterval) {
                     clearInterval(batchPollingInterval);
@@ -2349,8 +2442,9 @@
                 document.getElementById('batch-status-badge').textContent = 'Cancelado';
                 document.getElementById('batch-loading-bar').style.display = 'none';
                 document.getElementById('btn-cancel-batch').style.display = 'none';
+                document.getElementById('btn-retry-batch').style.display = 'none';
             } catch (err) {
-                mostrarAlerta("Erro ao cancelar lote.", "error");
+                mostrarAlerta("Erro ao cancelar fila.", "error");
             }
         }
         
@@ -2360,15 +2454,17 @@
             exibirLoader(true, "Carregando questões extraídas do lote...");
             
             try {
-                const response = await fetch((window.API_BASE_URL || '') + `/api/lote/status/${currentBatchId}?incluir_questoes=true`);
+                const response = await fetch((window.API_BASE_URL || '') + `/api/tasks/${currentBatchId}?incluir_questoes=true`);
                 const data = await response.json();
                 
                 questoes = [];
-                data.arquivos.forEach(arq => {
-                    if (arq.questoes && arq.questoes.length > 0) {
-                        questoes = questoes.concat(arq.questoes);
-                    }
-                });
+                if (data.arquivos) {
+                    data.arquivos.forEach(arq => {
+                        if (arq.questoes && arq.questoes.length > 0) {
+                            questoes = questoes.concat(arq.questoes);
+                        }
+                    });
+                }
                 
                 exibirLoader(false);
                 
@@ -2383,7 +2479,8 @@
                 document.getElementById('workspace').style.display = 'grid';
                 
                 renderizarInterface();
-                mostrarAlerta(`${questoes.length} questões carregadas de ${data.concluidos} PDFs!`, "success");
+                const totalConcluidos = data.completed_files !== undefined ? data.completed_files : data.concluidos;
+                mostrarAlerta(`${questoes.length} questões carregadas de ${totalConcluidos} PDF(s)!`, "success");
                 
                 salvarLoteNoWordPress(currentBatchId, questoes, data.arquivos && data.arquivos[0] ? data.arquivos[0].filename : '');
                 salvarQuestoesLocal();
@@ -2569,7 +2666,7 @@
                     return;
                 }
             
-                const response = await fetch((window.API_BASE_URL || '') + `/api/lote/status/${currentBatchId}`);
+                const response = await fetch((window.API_BASE_URL || '') + `/api/tasks/${currentBatchId}`);
                 const data = await response.json();
                 
                 if (data.erro) {

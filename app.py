@@ -676,19 +676,22 @@ def aquecer_ia():
         return jsonify({"erro": str(e)}), 500
 
 # ==============================================================================
-# ENDPOINTS DE PROCESSAMENTO EM LOTE (WordPress & Async API)
+# ENDPOINTS DE PROCESSAMENTO EM LOTE E FILA ASSÍNCRONA NUVEM/RENDER
 # ==============================================================================
 
+@app.route('/api/upload-pdf', methods=['POST'])
 @app.route('/api/lote/upload', methods=['POST'])
 def lote_upload():
-    """Recebe múltiplos arquivos PDF de uma só vez para processamento em fila assíncrona."""
+    """Recebe arquivos PDF (individuais ou múltiplos) e enfileira na fila assíncrona do servidor."""
     try:
         files = request.files.getlist('pdf_files')
+        if not files or len(files) == 0:
+            files = request.files.getlist('questoes_pdf')
         if not files or len(files) == 0:
             files = [file for k, file in request.files.items() if file.filename]
             
         if not files:
-            return jsonify({"erro": "Nenhum arquivo PDF enviado no lote."}), 400
+            return jsonify({"erro": "Nenhum arquivo PDF enviado."}), 400
             
         batch_id = str(uuid.uuid4())[:8]
         pasta_lote = os.path.join(app.config['UPLOAD_FOLDER'], 'uploads_lotes', f"lote_{batch_id}")
@@ -726,6 +729,7 @@ def lote_upload():
             
         DADOS_LOTES[batch_id] = {
             "batch_id": batch_id,
+            "task_id": batch_id,
             "status": "na_fila",
             "autocorrigir_ia": autocorrigir_ia,
             "provedor": provedor,
@@ -743,56 +747,155 @@ def lote_upload():
             "fim": None
         }
         
+        salvar_lotes_disk()
+        
         # Enfileira o lote no worker assíncrono
         FILA_LOTES.put(batch_id)
         
         return jsonify({
-            "mensagem": f"Lote #{batch_id} iniciado com sucesso! {len(arquivos_lote)} PDFs na fila de processamento.",
+            "task_id": batch_id,
             "batch_id": batch_id,
-            "total_arquivos": len(arquivos_lote),
-            "status": "na_fila"
+            "status": "queued",
+            "mensagem": f"Upload recebido com sucesso! Tarefa #{batch_id} enfileirada com {len(arquivos_lote)} arquivo(s).",
+            "total_arquivos": len(arquivos_lote)
         })
         
     except Exception as e:
-        return jsonify({"erro": f"Erro ao receber lote de arquivos: {str(e)}"}), 500
+        return jsonify({"erro": f"Erro ao receber arquivo(s) PDF: {str(e)}"}), 500
 
-@app.route('/api/lote/status/<batch_id>', methods=['GET'])
-def lote_status(batch_id):
-    """Consulta o status em tempo real do processamento de um lote."""
-    lote = DADOS_LOTES.get(batch_id)
-    if not lote:
-        return jsonify({"erro": "Lote não encontrado."}), 404
-        
-    resumo_arquivos = []
+
+def _formatar_resposta_tarefa(lote, incluir_questoes=False):
+    """Auxiliar para formatar o objeto de resposta de uma tarefa com métricas e status padronizados."""
+    batch_id = lote["batch_id"]
     concluidos = 0
     erros = 0
+    pendentes = 0
+    processando = 0
+    resumo_arquivos = []
     
-    for arq in lote["arquivos"]:
-        if arq["status"] == "concluido":
+    for arq in lote.get("arquivos", []):
+        st = arq.get("status", "pendente")
+        if st == "concluido":
             concluidos += 1
-        elif arq["status"] == "erro":
+        elif st == "erro":
             erros += 1
+        elif st == "processando":
+            processando += 1
+        else:
+            pendentes += 1
             
-        resumo_arquivos.append({
-            "id": arq["id"],
-            "filename": arq["filename"],
-            "status": arq["status"],
-            "total_questoes": arq["total_questoes"],
-            "erro": arq["erro"],
-            "questoes": arq["questoes"] if request.args.get('incluir_questoes') == 'true' else None
-        })
+        item_arq = {
+            "id": arq.get("id"),
+            "filename": arq.get("filename"),
+            "status": st,
+            "total_questoes": arq.get("total_questoes", 0),
+            "error_message": arq.get("erro"),
+            "erro": arq.get("erro")
+        }
+        if incluir_questoes:
+            item_arq["questoes"] = arq.get("questoes", [])
+        resumo_arquivos.append(item_arq)
         
-    return jsonify({
+    total_arquivos = lote.get("total_arquivos", len(resumo_arquivos))
+    progresso_pct = round(((concluidos + erros) / total_arquivos * 100)) if total_arquivos > 0 else 0
+    
+    # Mapeamento do status principal da tarefa
+    raw_status = lote.get("status", "na_fila")
+    if lote.get("cancelado"):
+        std_status = "canceled"
+    elif raw_status == "na_fila":
+        std_status = "queued"
+    elif raw_status == "processando":
+        std_status = "processing"
+    elif erros == total_arquivos and total_arquivos > 0:
+        std_status = "failed"
+    elif raw_status == "concluido" or (concluidos + erros == total_arquivos and total_arquivos > 0):
+        std_status = "completed"
+    else:
+        std_status = raw_status
+        
+    return {
+        "task_id": batch_id,
         "batch_id": batch_id,
-        "status": lote["status"],
-        "total_arquivos": lote["total_arquivos"],
+        "status": std_status,
+        "raw_status": raw_status,
+        "progress_pct": progresso_pct,
+        "total_files": total_arquivos,
+        "total_arquivos": total_arquivos,
+        "completed_files": concluidos,
         "concluidos": concluidos,
+        "failed_files": erros,
         "erros": erros,
-        "total_questoes_extraidas": lote["total_questoes_extraidas"],
+        "pending_files": pendentes,
+        "total_questoes_extraidas": lote.get("total_questoes_extraidas", 0),
+        "wp_import_status": lote.get("wp_import_status"),
+        "wp_import_mensagem": lote.get("wp_import_mensagem"),
         "arquivos": resumo_arquivos,
         "inicio": lote.get("inicio"),
         "fim": lote.get("fim")
-    })
+    }
+
+
+@app.route('/api/tasks', methods=['GET'])
+@app.route('/api/lote/listar', methods=['GET'])
+def listar_tarefas():
+    """Lista todas as tarefas da fila/histórico em execução ou concluídas."""
+    incluir_questoes = request.args.get('incluir_questoes') == 'true'
+    lista = []
+    for b_id, lote in DADOS_LOTES.items():
+        lista.append(_formatar_resposta_tarefa(lote, incluir_questoes=incluir_questoes))
+    return jsonify({"tasks": lista, "lotes": lista})
+
+
+@app.route('/api/tasks/<task_id>', methods=['GET'])
+@app.route('/api/status/<task_id>', methods=['GET'])
+@app.route('/api/lote/status/<task_id>', methods=['GET'])
+def obter_status_tarefa(task_id):
+    """Retorna os detalhes e status em tempo real de uma tarefa específica."""
+    lote = DADOS_LOTES.get(task_id)
+    if not lote:
+        return jsonify({"erro": "Tarefa não encontrada.", "error_message": "Task not found."}), 404
+        
+    incluir_questoes = request.args.get('incluir_questoes') == 'true'
+    return jsonify(_formatar_resposta_tarefa(lote, incluir_questoes=incluir_questoes))
+
+
+@app.route('/api/tasks/<task_id>/retry', methods=['POST'])
+def tentar_novamente_tarefa(task_id):
+    """Reenfileira os arquivos com erro de uma tarefa para nova tentativa."""
+    lote = DADOS_LOTES.get(task_id)
+    if not lote:
+        return jsonify({"erro": "Tarefa não encontrada."}), 404
+        
+    hove_reset = False
+    for arq in lote.get("arquivos", []):
+        if arq.get("status") in ["erro", "cancelado"]:
+            arq["status"] = "pendente"
+            arq["erro"] = None
+            hove_reset = True
+            
+    if hove_reset:
+        lote["status"] = "na_fila"
+        lote["cancelado"] = False
+        salvar_lotes_disk()
+        FILA_LOTES.put(task_id)
+        return jsonify({"mensagem": f"Tarefa #{task_id} reenfileirada para nova tentativa.", "task_id": task_id})
+    else:
+        return jsonify({"mensagem": "Nenhum arquivo com erro para tentar novamente."})
+
+
+@app.route('/api/tasks/<task_id>', methods=['DELETE'])
+@app.route('/api/lote/excluir/<task_id>', methods=['POST', 'DELETE'])
+def excluir_tarefa(task_id):
+    """Cancela/remove uma tarefa do histórico e da memória."""
+    if task_id in DADOS_LOTES:
+        lote = DADOS_LOTES[task_id]
+        lote["cancelado"] = True
+        del DADOS_LOTES[task_id]
+        salvar_lotes_disk()
+        return jsonify({"mensagem": f"Tarefa #{task_id} removida com sucesso.", "task_id": task_id})
+    return jsonify({"erro": "Tarefa não encontrada."}), 404
+
 
 @app.route('/api/lote/cancelar/<batch_id>', methods=['POST'])
 def lote_cancelar(batch_id):
@@ -803,34 +906,9 @@ def lote_cancelar(batch_id):
         
     lote["cancelado"] = True
     lote["status"] = "cancelado"
+    salvar_lotes_disk()
     return jsonify({"mensagem": f"Lote #{batch_id} cancelado com sucesso."})
 
-@app.route('/api/lote/listar', methods=['GET'])
-def lote_listar():
-    """Lista todos os lotes criados na sessão do servidor com detalhes dos arquivos."""
-    lista = []
-    for b_id, lote in DADOS_LOTES.items():
-        resumo_arqs = []
-        for arq in lote.get("arquivos", []):
-            resumo_arqs.append({
-                "id": arq.get("id"),
-                "filename": arq.get("filename"),
-                "status": arq.get("status"),
-                "total_questoes": arq.get("total_questoes", 0),
-                "erro": arq.get("erro")
-            })
-        lista.append({
-            "batch_id": b_id,
-            "status": lote["status"],
-            "total_arquivos": lote["total_arquivos"],
-            "total_questoes_extraidas": lote.get("total_questoes_extraidas", 0),
-            "wp_import_status": lote.get("wp_import_status"),
-            "wp_import_mensagem": lote.get("wp_import_mensagem"),
-            "arquivos": resumo_arqs,
-            "inicio": lote.get("inicio"),
-            "fim": lote.get("fim")
-        })
-    return jsonify({"lotes": lista})
 
 @app.route('/api/lote/ultimo', methods=['GET'])
 def lote_ultimo():
@@ -838,16 +916,8 @@ def lote_ultimo():
     if not DADOS_LOTES:
         return jsonify({"erro": "Nenhum lote recente encontrado."}), 404
     ultimo_id = list(DADOS_LOTES.keys())[-1]
-    return lote_status(ultimo_id)
+    return obter_status_tarefa(ultimo_id)
 
-@app.route('/api/lote/excluir/<batch_id>', methods=['POST', 'DELETE'])
-def lote_excluir(batch_id):
-    """Exclui um lote da memória e salva alterações em disco."""
-    if batch_id in DADOS_LOTES:
-        del DADOS_LOTES[batch_id]
-        salvar_lotes_disk()
-        return jsonify({"mensagem": f"Lote #{batch_id} excluído com sucesso."})
-    return jsonify({"erro": "Lote não encontrado."}), 404
 
 
 

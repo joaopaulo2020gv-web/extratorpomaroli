@@ -1,0 +1,212 @@
+.extrator-questoes-container {
+    max-width: 900px;
+    margin: 20px auto;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+}
+
+.questao-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 24px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.questao-card:hover {
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08);
+}
+
+.questao-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #f1f5f9;
+    padding-bottom: 12px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.questao-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.questao-badges {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.badge-tag {
+    background: #f1f5f9;
+    color: #475569;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 6px;
+}
+
+.badge-tag.highlight {
+    background: #e0e7ff;
+    color: #4338ca;
+}
+
+.badge-ia {
+    background: linear-gradient(135deg, #a855f7, #ec4899);
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 6px;
+}
+
+.questao-enunciado {
+    font-size: 15px;
+    line-height: 1.6;
+    color: #1e293b;
+    margin-bottom: 20px;
+}
+
+.questao-enunciado p {
+    margin-bottom: 12px;
+}
+
+.questao-alternativas {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.alternativa-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    padding: 12px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s ease-in-out;
+}
+
+.alternativa-item:hover {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+}
+
+.alternativa-item.correta {
+    background: #f0fdf4 !important;
+    border-color: #22c55e !important;
+}
+
+.alternativa-item.incorreta {
+    background: #fef2f2 !important;
+    border-color: #ef4444 !important;
+}
+
+.alternativa-letra {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    background: #cbd5e1;
+    color: #0f172a;
+    font-weight: bold;
+    font-size: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.alternativa-item.correta .alternativa-letra {
+    background: #22c55e;
+    color: #ffffff;
+}
+
+.alternativa-item.incorreta .alternativa-letra {
+    background: #ef4444;
+    color: #ffffff;
+}
+
+.alternativa-texto {
+    font-size: 14px;
+    color: #334155;
+}
+
+.questao-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 18px;
+}
+
+.btn-responder-questao {
+    background: linear-gradient(135deg, #6366f1, #4f46e5);
+    color: #ffffff;
+    border: none;
+    padding: 10px 22px;
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: transform 0.1s ease, box-shadow 0.15s ease;
+}
+
+.btn-responder-questao:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
+}
+
+.btn-toggle-comentario {
+    background: #f5f3ff;
+    color: #7c3aed;
+    border: 1px solid #ddd6fe;
+    padding: 10px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.questao-feedback {
+    margin-top: 15px;
+    padding: 14px;
+    border-radius: 8px;
+    font-size: 14px;
+}
+
+.questao-feedback.correto {
+    background: #dcfce7;
+    color: #15803d;
+    border: 1px solid #bbf7d0;
+}
+
+.questao-feedback.incorreto {
+    background: #fee2e2;
+    color: #b91c1c;
+    border: 1px solid #fecaca;
+}
+
+.questao-comentario-box {
+    margin-top: 15px;
+    background: #faf5ff;
+    border: 1px solid #e9d5ff;
+    border-radius: 8px;
+    padding: 16px;
+}
+
+.questao-comentario-box h4 {
+    margin: 0 0 8px 0;
+    color: #6b21a8;
+    font-size: 14px;
+}
+
+.comentario-conteudo {
+    font-size: 14px;
+    line-height: 1.6;
+    color: #4c1d95;
+}
