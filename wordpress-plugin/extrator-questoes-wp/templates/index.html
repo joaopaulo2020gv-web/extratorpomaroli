@@ -1477,7 +1477,7 @@
         </div>
 
         <!-- FASE 1: UPLOAD MULTI-PDF DE QUESTÕES -->
-        <section id="upload-box" class="upload-section">
+        <section id="upload-box" class="upload-section" style="cursor: pointer;" onclick="triggerFileSelect(event)">
             <div class="upload-icon">
                 <i class="fa-solid fa-file-pdf"></i>
             </div>
@@ -2143,34 +2143,57 @@
             renderFileList();
         }
         
+        function triggerFileSelect(e) {
+            if (e && (e.target.closest('#multi-file-list') || e.target.closest('#multi-file-footer') || e.target.closest('#btn-start-batch') || e.target.id === 'questoes_pdf_input')) return;
+            const input = document.getElementById('questoes_pdf_input');
+            if (input) input.click();
+        }
+        
         async function iniciarLote() {
             if (selectedFiles.length === 0) {
                 mostrarAlerta("Nenhum arquivo selecionado para processar.", "error");
                 return;
             }
             
-            const usarIaSegmentar = document.getElementById('usar-ia-segmentar').checked;
-            const usarOcr = document.getElementById('usar-ocr').checked;
-            const provider = usarIaSegmentar ? document.getElementById('seg-provider').value : document.getElementById('ia-provider').value;
+            const usarIaSegEl = document.getElementById('usar-ia-segmentar');
+            const usarIaSegmentar = usarIaSegEl ? usarIaSegEl.checked : false;
+            
+            const usarOcrEl = document.getElementById('usar-ocr');
+            const usarOcr = usarOcrEl ? usarOcrEl.checked : false;
+            
+            const segProvEl = document.getElementById('seg-provider');
+            const iaProvEl = document.getElementById('ia-provider');
+            const provider = usarIaSegmentar 
+                ? (segProvEl ? segProvEl.value : 'gemini') 
+                : (iaProvEl ? iaProvEl.value : 'gemini');
             
             let apiKey = "";
-            if (provider === 'gemini') {
-                apiKey = document.getElementById('gemini-api-key').value.trim();
-            } else if (provider === 'openai') {
-                apiKey = document.getElementById('openai-api-key').value.trim();
-            } else if (provider === 'deepseek') {
-                apiKey = document.getElementById('deepseek-api-key').value.trim();
+            const geminiKeyEl = document.getElementById('gemini-api-key');
+            const openaiKeyEl = document.getElementById('openai-api-key');
+            const deepseekKeyEl = document.getElementById('deepseek-api-key');
+            
+            if (provider === 'gemini' && geminiKeyEl) {
+                apiKey = geminiKeyEl.value.trim();
+            } else if (provider === 'openai' && openaiKeyEl) {
+                apiKey = openaiKeyEl.value.trim();
+            } else if (provider === 'deepseek' && deepseekKeyEl) {
+                apiKey = deepseekKeyEl.value.trim();
             }
             
             let model = "";
             let endpoint = "";
+            const ollamaModelEl = document.getElementById('ollama-model');
+            const ollamaEndEl = document.getElementById('ollama-endpoint');
+            const openaiModelEl = document.getElementById('openai-model');
+            const deepseekModelEl = document.getElementById('deepseek-model');
+            
             if (provider === 'ollama') {
-                model = document.getElementById('ollama-model').value.trim();
-                endpoint = document.getElementById('ollama-endpoint').value.trim();
-            } else if (provider === 'openai') {
-                model = document.getElementById('openai-model').value.trim();
-            } else if (provider === 'deepseek') {
-                model = document.getElementById('deepseek-model').value.trim();
+                model = ollamaModelEl ? ollamaModelEl.value.trim() : '';
+                endpoint = ollamaEndEl ? ollamaEndEl.value.trim() : '';
+            } else if (provider === 'openai' && openaiModelEl) {
+                model = openaiModelEl.value.trim();
+            } else if (provider === 'deepseek' && deepseekModelEl) {
+                model = deepseekModelEl.value.trim();
             }
             
             const formData = new FormData();
@@ -2184,7 +2207,11 @@
             formData.append('model', model);
             formData.append('endpoint', endpoint);
             formData.append('usar_ocr', usarOcr);
-            const wpUrl = window.location.origin || window.location.protocol + '            const TIMEOUT_MS = 120000; // 120s por tentativa (Render cold start)
+            const wpUrl = window.location.origin || (window.location.protocol + '//' + window.location.hostname);
+            formData.append('wp_site_url', wpUrl);
+
+            const MAX_TENTATIVAS = 3;
+            const TIMEOUT_MS = 120000; // 120s por tentativa (Render cold start)
 
             async function enviarLoteComRetry(tentativa) {
                 exibirLoader(true, tentativa === 1
@@ -4592,11 +4619,28 @@
                 document.getElementById('seg-endpoint').value = savedSegEndpoint;
             }
             
-            // Alinha a exibição visual dos campos com o provedor carregado
-            alternarCamposProvedor();
-            
-            // Dispara o pré-aquecimento do Ollama na inicialização se aplicável
-            aquecerIaLocal();
+            // Configura Drag and Drop na caixa de upload
+            const dropzone = document.getElementById('upload-box');
+            if (dropzone) {
+                ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(evtName => {
+                    dropzone.addEventListener(evtName, (e) => { e.preventDefault(); e.stopPropagation(); }, false);
+                });
+                ['dragenter', 'dragover'].forEach(evtName => {
+                    dropzone.addEventListener(evtName, () => dropzone.classList.add('dragover'), false);
+                });
+                ['dragleave', 'drop'].forEach(evtName => {
+                    dropzone.addEventListener(evtName, () => dropzone.classList.remove('dragover'), false);
+                });
+                dropzone.addEventListener('drop', (e) => {
+                    const files = e.dataTransfer ? e.dataTransfer.files : null;
+                    if (files && files.length > 0) {
+                        handleFilesSelection(files);
+                    }
+                }, false);
+            }
+
+            // Recupera lote ativo pendente no servidor
+            recuperarLoteAtivo();
         });
     </script>
 </body>
