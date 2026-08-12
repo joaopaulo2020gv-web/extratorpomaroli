@@ -16,7 +16,9 @@ import extrator
 from qualidade import validar_questoes
 
 app = Flask(__name__, template_folder='templates')
-app.config['UPLOAD_FOLDER'] = os.path.dirname(os.path.abspath(__file__))
+# Usa UPLOAD_FOLDER do environment (disco persistente no Render: /data/uploads)
+# ou fallback para o diretório local em desenvolvimento
+app.config['UPLOAD_FOLDER'] = os.environ.get('UPLOAD_FOLDER', os.path.dirname(os.path.abspath(__file__)))
 ARQUIVO_SAIDA_CSV = "questoes_importar.csv"
 ARQUIVO_SAIDA_JSON = "questoes_importar.json"
 
@@ -49,7 +51,10 @@ DADOS_MEMORIA = {
 # Gerenciamento de Fila de Lotes (Background Tasks)
 DADOS_LOTES = {}
 FILA_LOTES = Queue()
-ARQUIVO_LOTES_DB = os.path.join(app.config['UPLOAD_FOLDER'], 'uploads_lotes', 'lotes_db.json')
+# lotes_db.json fica dentro do diretório de uploads (disco persistente no Render)
+LOTES_DIR = os.path.join(app.config['UPLOAD_FOLDER'], 'uploads_lotes')
+os.makedirs(LOTES_DIR, exist_ok=True)
+ARQUIVO_LOTES_DB = os.path.join(LOTES_DIR, 'lotes_db.json')
 
 def salvar_lotes_disk():
     """Salva o estado atual dos lotes em arquivo JSON em disco para persistir entre reinícios do servidor."""
