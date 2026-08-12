@@ -3,6 +3,7 @@
 ## Plugin WordPress (wordpress-plugin/extrator-questoes-wp/)
 
 - **OBRIGATORIO**: Sempre que alterar `extrator-questoes-wp.php` ou `index.html` do plugin, ATUALIZAR o campo `Version:` no header do PHP (Plugin Name header). Incrementar a versao (ex: 3.0.3 -> 3.0.4).
+- **OBRIGATORIO**: Sempre que gerar ou atualizar o pacote `extrator-questoes-wp.zip`, COPIAR o arquivo `.zip` para a Área de Trabalho do Usuário (Desktop).
 - Manter `render.yaml` e `app.py` sincronizados. O Render faz deploy automatico via GitHub.
 
 ## Deploy
