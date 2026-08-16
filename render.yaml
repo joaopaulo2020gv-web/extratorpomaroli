@@ -7,9 +7,3 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
-      - key: UPLOAD_FOLDER
-        value: /data/uploads
-    disk:
-      name: extrator-data
-      mountPath: /data
-      sizeGB: 1

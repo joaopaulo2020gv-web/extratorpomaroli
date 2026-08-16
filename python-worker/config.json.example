@@ -1,0 +1,6 @@
+{
+    "wordpress_url": "https://seudominio.com",
+    "worker_secret": "MUADE_SUA_CHAVE_SECRETA_AQUI",
+    "gemini_api_key": "",
+    "block_size": 20
+}

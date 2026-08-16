@@ -258,7 +258,10 @@ class Pomaroli_DB {
         );
         $args = wp_parse_args($args, $defaults);
 
-        $where = $wpdb->prepare("user_id = %d", $user_id);
+        $where = '1=1';
+        if (!current_user_can('manage_options')) {
+            $where = $wpdb->prepare("(user_id = %d OR user_id = 0)", $user_id);
+        }
         if (!empty($args['status'])) {
             $where .= $wpdb->prepare(" AND status = %s", $args['status']);
         }

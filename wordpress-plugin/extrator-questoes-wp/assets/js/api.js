@@ -100,7 +100,7 @@ const PomaroliAPI = (() => {
     }
 
     function deleteJob(id) {
-        return _delete(`jobs/${id}`);
+        return _post(`jobs/${id}/delete`);
     }
 
     function retryJob(id) {

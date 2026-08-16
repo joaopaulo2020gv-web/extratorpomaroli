@@ -1,0 +1,10 @@
+# Bloquear acesso direto a arquivos sensíveis
+<FilesMatch "\.(py|json|sh|lock)$">
+    Require all denied
+</FilesMatch>
+
+# Bloquear acesso ao diretório python-worker
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^python-worker/ - [F,L]
+</IfModule>

@@ -51,7 +51,7 @@ class Pomaroli_REST {
                 'permission_callback' => array($this, 'is_user_logged_in'),
             ),
             array(
-                'methods'             => 'DELETE',
+                'methods'             => array('DELETE', 'POST'),
                 'callback'            => array($this, 'delete_job'),
                 'permission_callback' => array($this, 'is_user_logged_in'),
             ),
@@ -60,6 +60,12 @@ class Pomaroli_REST {
                 'callback'            => array($this, 'update_job_status'),
                 'permission_callback' => array($this, 'is_user_logged_in'),
             ),
+        ));
+
+        register_rest_route(self::NAMESPACE, '/jobs/(?P<id>\d+)/delete', array(
+            'methods'             => array('POST', 'DELETE'),
+            'callback'            => array($this, 'delete_job'),
+            'permission_callback' => array($this, 'is_user_logged_in'),
         ));
 
         register_rest_route(self::NAMESPACE, '/jobs/(?P<id>\d+)/retry', array(
@@ -320,6 +326,10 @@ class Pomaroli_REST {
         $job_id = intval($request['id']);
         $job = $this->db->get_job($job_id, $user_id);
 
+        if (!$job && current_user_can('manage_options')) {
+            $job = $this->db->get_job($job_id, null);
+        }
+
         if (!$job) {
             return new WP_Error('not_found', 'Job não encontrado.', array('status' => 404));
         }
@@ -328,10 +338,10 @@ class Pomaroli_REST {
             return new WP_Error('cannot_delete', 'Não é possível excluir job em processamento. Cancele primeiro.', array('status' => 409));
         }
 
-        $this->db->delete_job($job_id, $user_id);
+        $this->db->delete_job($job_id, current_user_can('manage_options') ? null : $user_id);
         $this->db->log('info', "Job #{$job_id} excluído", $user_id, $job_id);
 
-        return rest_ensure_response(array('deleted' => true, 'id' => $job_id));
+        return rest_ensure_response(array('deleted' => true, 'id' => $job_id, 'message' => 'Processamento excluído com sucesso.'));
     }
 
     public function update_job_status($request) {
