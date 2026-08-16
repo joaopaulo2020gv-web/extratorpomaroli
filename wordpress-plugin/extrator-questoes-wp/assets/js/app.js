@@ -23,6 +23,36 @@ const PomaroliApp = (() => {
         setTimeout(() => el.remove(), 4000);
     }
 
+    function confirmModal(message) {
+        return new Promise((resolve) => {
+            const overlay = document.getElementById('confirm-modal');
+            const msgEl = document.getElementById('confirm-modal-message');
+            const btnOk = document.getElementById('confirm-modal-ok');
+            const btnCancel = document.getElementById('confirm-modal-cancel');
+
+            if (!overlay) { resolve(confirm(message)); return; }
+
+            msgEl.textContent = message;
+            overlay.style.display = 'flex';
+
+            function cleanup(result) {
+                overlay.style.display = 'none';
+                btnOk.removeEventListener('click', onOk);
+                btnCancel.removeEventListener('click', onCancel);
+                overlay.removeEventListener('click', onOverlay);
+                resolve(result);
+            }
+
+            function onOk() { cleanup(true); }
+            function onCancel() { cleanup(false); }
+            function onOverlay(e) { if (e.target === overlay) cleanup(false); }
+
+            btnOk.addEventListener('click', onOk);
+            btnCancel.addEventListener('click', onCancel);
+            overlay.addEventListener('click', onOverlay);
+        });
+    }
+
     function formatDate(d) {
         if (!d) return '--';
         const dt = new Date(d);
@@ -257,13 +287,14 @@ const PomaroliApp = (() => {
                 // Delete handlers
                 $$('.btn-delete-job').forEach(btn => {
                     btn.addEventListener('click', async () => {
-                        if (!confirm('Excluir este processamento?')) return;
+                        const confirmed = await confirmModal('Tem certeza que deseja excluir este processamento? Esta ação não pode ser desfeita.');
+                        if (!confirmed) return;
                         try {
                             await PomaroliAPI.deleteJob(btn.dataset.id);
-                            toast('Processamento excluído.', 'success');
+                            toast('Processamento excluído com sucesso.', 'success');
                             loadJobs(jobsPage);
                         } catch (e) {
-                            toast('Erro: ' + e.message, 'error');
+                            toast('Erro ao excluir: ' + e.message, 'error');
                         }
                     });
                 });
@@ -316,13 +347,14 @@ const PomaroliApp = (() => {
 
             // Cancel
             $('#jd-btn-cancel')?.addEventListener('click', async () => {
-                if (!confirm('Cancelar este processamento?')) return;
+                const confirmed = await confirmModal('Tem certeza que deseja cancelar este processamento?');
+                if (!confirmed) return;
                 try {
                     await PomaroliAPI.deleteJob(jobId);
                     toast('Processamento cancelado.', 'success');
                     navigate('jobs');
                 } catch (e) {
-                    toast('Erro: ' + e.message, 'error');
+                    toast('Erro ao cancelar: ' + e.message, 'error');
                 }
             });
 

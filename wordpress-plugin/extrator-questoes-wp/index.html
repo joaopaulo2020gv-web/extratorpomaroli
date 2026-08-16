@@ -603,6 +603,21 @@
         </div>
     </template>
 
+    <!-- Modal de Confirmação -->
+    <div id="confirm-modal" class="confirm-modal-overlay" style="display:none;">
+        <div class="confirm-modal-box">
+            <div class="confirm-modal-icon">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            <h3 class="confirm-modal-title">Confirmar exclusão</h3>
+            <p class="confirm-modal-message" id="confirm-modal-message">Tem certeza que deseja excluir este processamento? Esta ação não pode ser desfeita.</p>
+            <div class="confirm-modal-actions">
+                <button id="confirm-modal-cancel" class="btn btn-ghost">Cancelar</button>
+                <button id="confirm-modal-ok" class="btn btn-danger">Sim, excluir</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Container -->
     <div id="toast-container"></div>
 
