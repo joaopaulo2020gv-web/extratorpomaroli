@@ -1,16 +1,59 @@
 <?php
 /**
- * Plugin Name: Extrator de Questões Pomaroli
+ * Plugin Name: Extrator de Questoes Pomaroli
  * Plugin URI: https://extrator.pomaroli.com.br
- * Description: Plugin oficial Extrator de Questões Pomaroli para extração automatizada de questões de concursos em lote (PDFs múltiplos) com autocorreção via Google Gemini IA e integração com o banco do WordPress. Inclui aplicativo visual 100% Tela Cheia com login integrado.
- * Version: 3.0.17
+ * Description: Plugin oficial Extrator de Questoes Pomaroli para extracao automatizada de questoes de concursos em lote (PDFs multiplas) com autocorrecao via Google Gemini IA e integracao com o banco do WordPress. Inclui aplicativo visual 100% Tela Cheia com login integrado.
+ * Version: 3.3.4
  * Author: Equipe Pomaroli
  * Text Domain: extrator-questoes-wp
  */
 
 if (!defined('ABSPATH')) {
-    exit; // Segurança contra acesso direto
+    exit;
 }
+
+// =========================================================================
+// CARREGAMENTO DE CLASSES
+// =========================================================================
+
+$pomaroli_loaded_classes = array();
+$pomaroli_failed_classes = array();
+
+$include_files = array(
+    'class-pomaroli-db.php'          => 'Pomaroli_DB',
+    'class-pomaroli-migrate.php'     => 'Pomaroli_Migrate',
+    'class-pomaroli-worker-auth.php' => 'Pomaroli_Worker_Auth',
+    'class-pomaroli-rest.php'        => 'Pomaroli_REST',
+    'class-pomaroli-pdf-processor.php' => 'Pomaroli_PDF_Processor',
+    'class-pomaroli-gemini.php'      => 'Pomaroli_Gemini',
+    'class-pomaroli-queue.php'       => 'Pomaroli_Queue',
+    'class-pomaroli-importer.php'    => 'Pomaroli_Importer',
+);
+
+foreach ($include_files as $inc_file => $class_name) {
+    $inc_path = __DIR__ . '/includes/' . $inc_file;
+    if (file_exists($inc_path)) {
+        require_once $inc_path;
+        if (class_exists($class_name)) {
+            $pomaroli_loaded_classes[] = $class_name;
+        } else {
+            $pomaroli_failed_classes[] = $class_name;
+            error_log("[Pomaroli] Classe nao encontrada apos include: {$class_name} em {$inc_file}");
+        }
+    } else {
+        $pomaroli_failed_classes[] = $class_name;
+        error_log("[Pomaroli] Arquivo ausente: {$inc_path}");
+    }
+}
+
+error_log("[Pomaroli] Classes carregadas: " . implode(', ', $pomaroli_loaded_classes));
+if (!empty($pomaroli_failed_classes)) {
+    error_log("[Pomaroli] Classes com falha: " . implode(', ', $pomaroli_failed_classes));
+}
+
+// =========================================================================
+// CLASSE PRINCIPAL DO PLUGIN
+// =========================================================================
 
 class ExtratorQuestoesWP {
 
@@ -25,12 +68,18 @@ class ExtratorQuestoesWP {
 
     public function __construct() {
         add_action('init', array($this, 'registrar_cpt_questoes'));
+        add_action('init', array($this, 'registrar_cpt_questao_pomaroli'));
         add_action('admin_menu', array($this, 'adicionar_menu_admin'));
         add_action('admin_enqueue_scripts', array($this, 'carregar_scripts_admin'));
         add_action('wp_enqueue_scripts', array($this, 'carregar_scripts_frontend'));
         add_action('after_setup_theme', array($this, 'remover_admin_bar_nao_admins'));
-        
-        // Endpoints AJAX do WordPress
+
+        add_action('init', array($this, 'inicializar_rest_api'));
+        add_action('init', array($this, 'inicializar_queue'));
+
+        register_activation_hook(__FILE__, array($this, 'on_activate'));
+        register_deactivation_hook(__FILE__, array($this, 'on_deactivate'));
+
         add_action('wp_ajax_extrator_salvar_config', array($this, 'salvar_configuracoes'));
         add_action('wp_ajax_extrator_importar_banco', array($this, 'importar_questoes_banco'));
         add_action('wp_ajax_nopriv_extrator_importar_banco_auto', array($this, 'importar_banco_auto'));
@@ -38,7 +87,6 @@ class ExtratorQuestoesWP {
         add_action('wp_ajax_nopriv_extrator_ajax_login', array($this, 'ajax_login_handler'));
         add_action('wp_ajax_extrator_ajax_login', array($this, 'ajax_login_handler'));
 
-        // Endpoints de persistência de lotes (cache local no WordPress)
         add_action('wp_ajax_nopriv_extrator_salvar_lote_local', array($this, 'salvar_lote_local'));
         add_action('wp_ajax_extrator_salvar_lote_local', array($this, 'salvar_lote_local'));
         add_action('wp_ajax_nopriv_extrator_listar_lotes_locais', array($this, 'listar_lotes_locais'));
@@ -48,7 +96,6 @@ class ExtratorQuestoesWP {
         add_action('wp_ajax_nopriv_extrator_excluir_lote_local', array($this, 'excluir_lote_local'));
         add_action('wp_ajax_extrator_excluir_lote_local', array($this, 'excluir_lote_local'));
 
-        // Shortcodes do WordPress
         add_shortcode('extrator_pomaroli', array($this, 'shortcode_interage_questoes_app'));
         add_shortcode('interage_questoes_app', array($this, 'shortcode_interage_questoes_app'));
         add_shortcode('extrator_visual', array($this, 'shortcode_interage_questoes_app'));
@@ -56,27 +103,122 @@ class ExtratorQuestoesWP {
         add_shortcode('banco_questoes', array($this, 'shortcode_lista_questoes'));
         add_shortcode('questao', array($this, 'shortcode_questao_unica'));
 
-        // Colunas Personalizadas na tabela wp-admin/edit.php?post_type=questao
         add_filter('manage_questao_posts_columns', array($this, 'definir_colunas_questoes'));
         add_action('manage_questao_posts_custom_column', array($this, 'preencher_colunas_questoes'), 10, 2);
     }
 
-    /**
-     * Oculta a Admin Bar (barra preta superior do WordPress) para não-administradores
-     */
     public function remover_admin_bar_nao_admins() {
         if (!current_user_can('manage_options')) {
             show_admin_bar(false);
         }
     }
 
-    /**
-     * Define as colunas personalizadas na tabela de listagem de Questões
-     */
+    // =========================================================================
+    // ATIVACAO DO PLUGIN
+    // =========================================================================
+
+    public function on_activate() {
+        error_log("[Pomaroli] Iniciando ativacao do plugin...");
+
+        if (!class_exists('Pomaroli_DB')) {
+            error_log("[Pomaroli ERROR] Pomaroli_DB nao existe. Tabelas NAO criadas.");
+            return;
+        }
+
+        try {
+            $db = Pomaroli_DB::get_instance();
+            $db->create_tables();
+            error_log("[Pomaroli] Tabelas criadas/atualizadas com sucesso.");
+
+            if (class_exists('Pomaroli_Migrate')) {
+                $migrate = new Pomaroli_Migrate();
+                $migrate->run_migration();
+                error_log("[Pomaroli] Migracao executada.");
+            }
+
+            if (class_exists('Pomaroli_Worker_Auth')) {
+                $auth = Pomaroli_Worker_Auth::get_instance();
+                $auth->get_secret();
+                error_log("[Pomaroli] Secret do worker gerado.");
+            }
+
+            flush_rewrite_rules();
+            error_log("[Pomaroli] Ativacao concluida com sucesso.");
+        } catch (Exception $e) {
+            error_log("[Pomaroli ERROR] Erro na ativacao: " . $e->getMessage());
+        }
+    }
+
+    public function on_deactivate() {
+        if (class_exists('Pomaroli_Queue')) {
+            $queue = Pomaroli_Queue::get_instance();
+            $queue->deinit();
+        }
+        flush_rewrite_rules();
+    }
+
+    // =========================================================================
+    // INICIALIZACAO
+    // =========================================================================
+
+    public function inicializar_rest_api() {
+        if (!class_exists('Pomaroli_REST')) {
+            return;
+        }
+        static $initialized = false;
+        if ($initialized) {
+            return;
+        }
+        $initialized = true;
+        try {
+            new Pomaroli_REST();
+        } catch (Exception $e) {
+            error_log("[Pomaroli ERROR] Erro ao inicializar REST API: " . $e->getMessage());
+        }
+    }
+
+    public function registrar_cpt_questao_pomaroli() {
+        if (!class_exists('Pomaroli_Importer')) {
+            return;
+        }
+        static $registered = false;
+        if ($registered) {
+            return;
+        }
+        $registered = true;
+        try {
+            $importer = Pomaroli_Importer::get_instance();
+            $importer->register_cpt();
+        } catch (Exception $e) {
+            error_log("[Pomaroli ERROR] Erro ao registrar CPT questao: " . $e->getMessage());
+        }
+    }
+
+    public function inicializar_queue() {
+        if (!class_exists('Pomaroli_Queue')) {
+            return;
+        }
+        static $initialized = false;
+        if ($initialized) {
+            return;
+        }
+        $initialized = true;
+        try {
+            $queue = Pomaroli_Queue::get_instance();
+            $queue->init();
+        } catch (Exception $e) {
+            error_log("[Pomaroli ERROR] Erro ao inicializar fila: " . $e->getMessage());
+        }
+    }
+
+    // =========================================================================
+    // CPT E COLUNAS
+    // =========================================================================
+
     public function definir_colunas_questoes($columns) {
         $novas_colunas = array();
         $novas_colunas['cb'] = $columns['cb'];
-        $novas_colunas['title'] = 'Questão';
+        $novas_colunas['title'] = 'Questao';
         $novas_colunas['banca'] = 'Banca';
         $novas_colunas['disciplina'] = 'Disciplina';
         $novas_colunas['gabarito'] = 'Gabarito';
@@ -85,9 +227,6 @@ class ExtratorQuestoesWP {
         return $novas_colunas;
     }
 
-    /**
-     * Preenche o conteúdo das colunas personalizadas
-     */
     public function preencher_colunas_questoes($column, $post_id) {
         switch ($column) {
             case 'banca':
@@ -112,19 +251,16 @@ class ExtratorQuestoesWP {
         }
     }
 
-    /**
-     * Registra o Custom Post Type 'questao' no WordPress
-     */
     public function registrar_cpt_questoes() {
         $labels = array(
-            'name'               => 'Questões',
-            'singular_name'      => 'Questão',
-            'menu_name'          => 'Banco de Questões',
-            'add_new'            => 'Nova Questão',
-            'add_new_item'       => 'Adicionar Nova Questão',
-            'edit_item'          => 'Editar Questão',
-            'all_items'          => 'Todas as Questões',
-            'search_items'       => 'Buscar Questões',
+            'name'               => 'Questoes',
+            'singular_name'      => 'Questao',
+            'menu_name'          => 'Banco de Questoes',
+            'add_new'            => 'Nova Questao',
+            'add_new_item'       => 'Adicionar Nova Questao',
+            'edit_item'          => 'Editar Questao',
+            'all_items'          => 'Todas as Questoes',
+            'search_items'       => 'Buscar Questoes',
         );
 
         $args = array(
@@ -139,9 +275,10 @@ class ExtratorQuestoesWP {
         register_post_type('questao', $args);
     }
 
-    /**
-     * Adiciona a página de administração do Extrator
-     */
+    // =========================================================================
+    // ADMIN
+    // =========================================================================
+
     public function adicionar_menu_admin() {
         add_menu_page(
             'Extrator Pomaroli',
@@ -154,41 +291,58 @@ class ExtratorQuestoesWP {
         );
     }
 
-    /**
-     * Carrega CSS e JS no painel administrativo
-     */
     public function carregar_scripts_admin($hook) {
         if ($hook !== 'toplevel_page_extrator-questoes-ai') {
             return;
         }
 
-        wp_enqueue_style('extrator-admin-css', plugins_url('style.css', __FILE__), array(), '2.2.0');
-        wp_enqueue_script('extrator-admin-js', plugins_url('admin.js', __FILE__), array('jquery'), '2.2.0', true);
+        wp_enqueue_style('pomaroli-dashboard', plugins_url('assets/css/dashboard.css', __FILE__), array(), '3.3.4');
+        wp_enqueue_script('pomaroli-api', plugins_url('assets/js/api.js', __FILE__), array(), '3.3.4', true);
+        wp_enqueue_script('pomaroli-app', plugins_url('assets/js/app.js', __FILE__), array('pomaroli-api'), '3.3.4', true);
+
+        $app_config = array(
+            'restUrl'   => rest_url('pomaroli/v1/'),
+            'restNonce' => wp_create_nonce('wp_rest'),
+            'ajaxUrl'   => admin_url('admin-ajax.php'),
+            'userId'    => intval(get_current_user_id()),
+        );
+        wp_localize_script('pomaroli-api', 'APP_CONFIG', $app_config);
+
+        wp_enqueue_style('extrator-admin-css', plugins_url('style.css', __FILE__), array(), '3.3.4');
+        wp_enqueue_script('extrator-admin-js', plugins_url('admin.js', __FILE__), array('jquery'), '3.3.4', true);
 
         wp_localize_script('extrator-admin-js', 'extratorWPConfig', array(
             'ajaxurl'   => admin_url('admin-ajax.php'),
             'nonce'     => wp_create_nonce('extrator_nonce'),
-            'apiUrl'    => get_option('extrator_api_url', 'http://127.0.0.1:5000'),
-            'geminiKey' => get_option('extrator_gemini_api_key', '')
         ));
     }
 
-    /**
-     * Carrega CSS e JS no frontend para exibição interativa das questões
-     */
     public function carregar_scripts_frontend() {
-        wp_enqueue_style('extrator-frontend-css', plugins_url('frontend.css', __FILE__), array(), '2.2.0');
-        wp_enqueue_script('extrator-frontend-js', plugins_url('frontend.js', __FILE__), array('jquery'), '2.2.0', true);
+        wp_enqueue_style('pomaroli-dashboard', plugins_url('assets/css/dashboard.css', __FILE__), array(), '3.3.4');
+        wp_enqueue_script('pomaroli-api', plugins_url('assets/js/api.js', __FILE__), array(), '3.3.4', true);
+        wp_enqueue_script('pomaroli-app', plugins_url('assets/js/app.js', __FILE__), array('pomaroli-api'), '3.3.4', true);
+
+        $app_config = array(
+            'restUrl'   => rest_url('pomaroli/v1/'),
+            'restNonce' => wp_create_nonce('wp_rest'),
+            'ajaxUrl'   => admin_url('admin-ajax.php'),
+            'userId'    => intval(get_current_user_id()),
+        );
+        wp_localize_script('pomaroli-api', 'APP_CONFIG', $app_config);
+
+        wp_enqueue_style('extrator-frontend-css', plugins_url('frontend.css', __FILE__), array(), '3.3.4');
+        wp_enqueue_script('extrator-frontend-js', plugins_url('frontend.js', __FILE__), array('jquery'), '3.3.4', true);
     }
 
-    /**
-     * Salva as configurações de API URL e Gemini API Key
-     */
+    // =========================================================================
+    // CONFIGURACOES
+    // =========================================================================
+
     public function salvar_configuracoes() {
         check_ajax_referer('extrator_nonce', 'nonce');
 
         if (!current_user_can('manage_options')) {
-            wp_send_json_error(array('message' => 'Permissão negada.'));
+            wp_send_json_error(array('message' => 'Permissao negada.'));
         }
 
         $api_url = sanitize_text_field($_POST['api_url']);
@@ -197,15 +351,13 @@ class ExtratorQuestoesWP {
         update_option('extrator_api_url', rtrim($api_url, '/'));
         update_option('extrator_gemini_api_key', $gemini_key);
 
-        wp_send_json_success(array('message' => 'Configurações salvas com sucesso!'));
+        wp_send_json_success(array('message' => 'Configuracoes salvas com sucesso!'));
     }
 
-    /**
-     * Importa questões extraídas diretamente no Banco de Dados do WordPress (CPT questao)
-     */
-    /**
-     * Helper interno para salvar questões no CPT questao com prevenção contra duplicatas e log
-     */
+    // =========================================================================
+    // IMPORTACAO DE QUESTOES
+    // =========================================================================
+
     private function processar_insercao_questoes($questoes) {
         $inseridos = 0;
         $duplicados = 0;
@@ -214,13 +366,12 @@ class ExtratorQuestoesWP {
             $enunciado = isset($q['Enunciado']) ? trim($q['Enunciado']) : '';
             $banca = isset($q['Banca']) ? $q['Banca'] : 'Concurso';
             $numero = isset($q['Numero']) ? $q['Numero'] : '';
-            $titulo = "Questão #" . ($numero ?: ($inseridos + 1)) . " - " . $banca;
+            $titulo = "Questao #" . ($numero ?: ($inseridos + 1)) . " - " . $banca;
 
-            // Checa duplicados no banco do WP por título e post_type=questao
             $duplicado = get_page_by_title(wp_strip_all_tags($titulo), OBJECT, 'questao');
             if ($duplicado) {
                 $duplicados++;
-                continue; // Pula inserção se a questão já foi cadastrada
+                continue;
             }
 
             $conteudo = $enunciado;
@@ -268,28 +419,25 @@ class ExtratorQuestoesWP {
         return $log;
     }
 
-    /**
-     * Importa questões extraídas diretamente no Banco de Dados do WordPress (CPT questao)
-     */
     public function importar_questoes_banco() {
         check_ajax_referer('extrator_nonce', 'nonce');
 
         if (!current_user_can('manage_options')) {
-            wp_send_json_error(array('message' => 'Permissão negada.'));
+            wp_send_json_error(array('message' => 'Permissao negada.'));
         }
 
         $questoes_json = isset($_POST['questoes']) ? wp_unslash($_POST['questoes']) : '';
         $questoes = json_decode($questoes_json, true);
 
         if (!is_array($questoes) || empty($questoes)) {
-            wp_send_json_error(array('message' => 'Nenhuma questão válida enviada.'));
+            wp_send_json_error(array('message' => 'Nenhuma questao valida enviada.'));
         }
 
         $log = $this->processar_insercao_questoes($questoes);
 
-        $msg = "Sucesso! {$log['inseridos']} questões salvas no banco.";
+        $msg = "Sucesso! {$log['inseridos']} questoes salvas no banco.";
         if ($log['duplicados'] > 0) {
-            $msg .= " ({$log['duplicados']} já existiam e foram ignoradas)";
+            $msg .= " ({$log['duplicados']} ja existiam e foram ignoradas)";
         }
 
         wp_send_json_success(array(
@@ -298,29 +446,27 @@ class ExtratorQuestoesWP {
         ));
     }
 
-    /**
-     * Endpoint chamado pelo Servidor em Nuvem (Render) para salvar questões automaticamente
-     */
     public function importar_banco_auto() {
-        $secret = isset($_POST['secret']) ? $_POST['secret'] : '';
-        if ($secret !== 'extrator_pomaroli_secret_key_2026') {
-            wp_send_json_error(array('message' => 'Secret token inválido.'));
+        $auth = Pomaroli_Worker_Auth::get_instance();
+        $hmac_valido = $auth->validate_worker_request();
+        if (is_wp_error($hmac_valido)) {
+            wp_send_json_error(array('message' => 'Autenticacao HMAC invalida.'));
         }
 
         $questoes_json = isset($_POST['questoes']) ? wp_unslash($_POST['questoes']) : '';
         $questoes = json_decode($questoes_json, true);
 
         if (!is_array($questoes) || empty($questoes)) {
-            wp_send_json_error(array('message' => 'Nenhuma questão enviada.'));
+            wp_send_json_error(array('message' => 'Nenhuma questao enviada.'));
         }
 
         $log = $this->processar_insercao_questoes($questoes);
 
-        wp_send_json_success(array('message' => "Auto-salvamento: {$log['inseridos']} questões gravadas com sucesso no WordPress! ({$log['duplicados']} duplicadas ignoradas)"));
+        wp_send_json_success(array('message' => "Auto-salvamento: {$log['inseridos']} questoes gravadas com sucesso no WordPress! ({$log['duplicados']} duplicadas ignoradas)"));
     }
 
     // =========================================================================
-    // PERSISTÊNCIA LOCAL: Salvar/Carregar lotes no wp_options (sobrevive ao Render)
+    // PERSISTENCIA LOCAL
     // =========================================================================
 
     private function get_lotes_store_key() {
@@ -337,23 +483,20 @@ class ExtratorQuestoesWP {
         update_option($this->get_lotes_store_key(), json_encode($lotes, JSON_UNESCAPED_UNICODE));
     }
 
-    /**
-     * Salva um lote completo (com questões) no wp_options
-     * POST: batch_id, questoes (json), nome_arquivo, status
-     */
     public function salvar_lote_local() {
-        $secret = isset($_POST['secret']) ? sanitize_text_field($_POST['secret']) : '';
-        if ($secret !== 'extrator_pomaroli_secret_key_2026') {
-            wp_send_json_error(array('message' => 'Token inválido.'));
+        $auth = Pomaroli_Worker_Auth::get_instance();
+        $hmac_valido = $auth->validate_worker_request();
+        if (is_wp_error($hmac_valido)) {
+            wp_send_json_error(array('message' => 'Autenticacao HMAC invalida.'));
         }
 
         $batch_id = isset($_POST['batch_id']) ? sanitize_text_field($_POST['batch_id']) : '';
         $questoes_json = isset($_POST['questoes']) ? wp_unslash($_POST['questoes']) : '[]';
         $nome_arquivo = isset($_POST['nome_arquivo']) ? sanitize_text_field($_POST['nome_arquivo']) : '';
-        $status = isset($_POST['status']) ? sanitize_text_field($_POST['status']) : 'concluido';
+        $status = isset($_POST['status']) ? sanitize_text_field($_POST['status']) : 'completed';
 
         if (empty($batch_id)) {
-            wp_send_json_error(array('message' => 'batch_id obrigatório.'));
+            wp_send_json_error(array('message' => 'batch_id obrigatorio.'));
         }
 
         $questoes = json_decode($questoes_json, true);
@@ -391,15 +534,12 @@ class ExtratorQuestoesWP {
         $this->save_lotes_cache($lotes);
 
         wp_send_json_success(array(
-            'message' => count($questoes) . ' questões salvas localmente no WordPress.',
+            'message' => count($questoes) . ' questoes salvas localmente no WordPress.',
             'batch_id' => $batch_id,
             'total' => count($questoes),
         ));
     }
 
-    /**
-     * Lista todos os lotes cacheados no WordPress (sem as questões, só resumo)
-     */
     public function listar_lotes_locais() {
         $lotes = $this->get_lotes_cache();
         $lista = array();
@@ -415,10 +555,6 @@ class ExtratorQuestoesWP {
         wp_send_json_success(array('lotes' => $lista));
     }
 
-    /**
-     * Carrega um lote específico com todas as questões
-     * POST/GET: batch_id
-     */
     public function carregar_lote_local() {
         $batch_id = isset($_POST['batch_id']) ? sanitize_text_field($_POST['batch_id']) : '';
         if (empty($batch_id)) {
@@ -426,7 +562,7 @@ class ExtratorQuestoesWP {
         }
 
         if (empty($batch_id)) {
-            wp_send_json_error(array('message' => 'batch_id obrigatório.'));
+            wp_send_json_error(array('message' => 'batch_id obrigatorio.'));
         }
 
         $lotes = $this->get_lotes_cache();
@@ -437,17 +573,13 @@ class ExtratorQuestoesWP {
             }
         }
 
-        wp_send_json_error(array('message' => 'Lote não encontrado.'));
+        wp_send_json_error(array('message' => 'Lote nao encontrado.'));
     }
 
-    /**
-     * Exclui um lote do cache local
-     * POST: batch_id
-     */
     public function excluir_lote_local() {
         $batch_id = isset($_POST['batch_id']) ? sanitize_text_field($_POST['batch_id']) : '';
         if (empty($batch_id)) {
-            wp_send_json_error(array('message' => 'batch_id obrigatório.'));
+            wp_send_json_error(array('message' => 'batch_id obrigatorio.'));
         }
 
         $lotes = $this->get_lotes_cache();
@@ -460,10 +592,10 @@ class ExtratorQuestoesWP {
         wp_send_json_success(array('message' => 'Lote removido.'));
     }
 
+    // =========================================================================
+    // LOGIN AJAX
+    // =========================================================================
 
-    /**
-     * Handler de Login AJAX para autenticar usuários diretamente na tela do extrator
-     */
     public function ajax_login_handler() {
         check_ajax_referer('extrator_login_nonce', 'security');
 
@@ -471,7 +603,7 @@ class ExtratorQuestoesWP {
         $password = isset($_POST['password']) ? $_POST['password'] : '';
 
         if (empty($username) || empty($password)) {
-            wp_send_json_error(array('message' => 'Por favor, preencha o usuário e a senha.'));
+            wp_send_json_error(array('message' => 'Por favor, preencha o usuario e a senha.'));
         }
 
         $creds = array(
@@ -483,7 +615,7 @@ class ExtratorQuestoesWP {
         $user = wp_signon($creds, is_ssl());
 
         if (is_wp_error($user)) {
-            wp_send_json_error(array('message' => 'Credenciais inválidas. Verifique seu usuário e senha.'));
+            wp_send_json_error(array('message' => 'Credenciais invalidas. Verifique seu usuario e senha.'));
         } else {
             wp_set_current_user($user->ID);
             wp_set_auth_cookie($user->ID, true);
@@ -491,12 +623,10 @@ class ExtratorQuestoesWP {
         }
     }
 
-    /**
-     * SHORTCODE PRINCIPAL: [interage_questoes_app] ou [extrator_visual]
-     * Exibe a interface completa da aplicação visual InterageQuestões (Drag & Drop, Editor, Gabarito)
-     * protegida por autenticação (apenas administradores ou usuário específico).
-     * Se o usuário não estiver logado, exibe um formulário de login integrado.
-     */
+    // =========================================================================
+    // SHORTCODES
+    // =========================================================================
+
     public function shortcode_interage_questoes_app($atts) {
         $atts = shortcode_atts(array(
             'usuario'    => '',
@@ -505,7 +635,6 @@ class ExtratorQuestoesWP {
             'tela_cheia' => 'true',
         ), $atts, 'interage_questoes_app');
 
-        // 1. Verificação de Acesso Privado (Libera para qualquer usuário logado no WordPress)
         $current_user = wp_get_current_user();
         $permitido = false;
 
@@ -513,12 +642,10 @@ class ExtratorQuestoesWP {
             $permitido = true;
         }
 
-        // Se houver filtro específico de usuario_id no shortcode
         if (!empty($atts['usuario_id'])) {
             $permitido = ($current_user->ID == intval($atts['usuario_id']));
         }
 
-        // Se houver filtro específico de nome de usuário no shortcode
         if (!empty($atts['usuario'])) {
             $permitido = (strtolower($current_user->user_login) === strtolower($atts['usuario']));
         }
@@ -536,7 +663,6 @@ class ExtratorQuestoesWP {
                         overflow: hidden !important;
                         background: #0b0f19 !important;
                     }
-                    /* Remove espaçamentos e barras do tema em Modo Tela Cheia */
                     header.site-header, footer.site-footer, .elementor-location-header, .elementor-location-footer, #masthead, #colophon, .sidebar, #secondary, .ast-container, #page, .site-content, article {
                         padding: 0 !important;
                         margin: 0 !important;
@@ -673,23 +799,23 @@ class ExtratorQuestoesWP {
                 </style>
 
                 <div class="extrator-login-card">
-                    <span class="logo-badge">Extrator Pomaroli v2.5</span>
-                    <h2>🔒 Área de Login Privada</h2>
-                    <p>Faça login com sua conta autorizada para acessar o <strong>Extrator de Questões Pomaroli</strong> e subir seus PDFs.</p>
+                    <span class="logo-badge">Extrator Pomaroli v3.3.3</span>
+                    <h2>Area de Login Privada</h2>
+                    <p>Faca login com sua conta autorizada para acessar o <strong>Extrator de Questoes Pomaroli</strong> e subir seus PDFs.</p>
 
                     <div id="extrator-login-error" class="extrator-login-alert"></div>
 
                     <form id="form-extrator-ajax-login" class="extrator-login-form">
                         <div class="form-group">
-                            <label>Usuário ou E-mail:</label>
-                            <input type="text" id="extrator-user-login" placeholder="Digite seu usuário" required autocomplete="username">
+                            <label>Usuario ou E-mail:</label>
+                            <input type="text" id="extrator-user-login" placeholder="Digite seu usuario" required autocomplete="username">
                         </div>
                         <div class="form-group">
                             <label>Senha:</label>
                             <input type="password" id="extrator-user-pass" placeholder="Digite sua senha" required autocomplete="current-password">
                         </div>
                         <button type="submit" id="btn-extrator-login" class="extrator-login-btn">
-                            <span>Entrar e Acessar Extrator</span> 🚀
+                            <span>Entrar e Acessar Extrator</span>
                         </button>
                     </form>
                 </div>
@@ -714,17 +840,17 @@ class ExtratorQuestoesWP {
                                 security: '<?php echo wp_create_nonce('extrator_login_nonce'); ?>'
                             }, function(response) {
                                 if (response.success) {
-                                    btn.html('<span>✅ Sucesso! Desbloqueando...</span>');
+                                    btn.html('<span>Sucesso! Desbloqueando...</span>');
                                     setTimeout(function() {
                                         window.location.reload();
                                     }, 500);
                                 } else {
-                                    errorDiv.text(response.data ? response.data.message : 'Credenciais inválidas.').fadeIn();
-                                    btn.prop('disabled', false).html('<span>Entrar e Acessar Extrator</span> 🚀');
+                                    errorDiv.text(response.data ? response.data.message : 'Credenciais invalidas.').fadeIn();
+                                    btn.prop('disabled', false).html('<span>Entrar e Acessar Extrator</span>');
                                 }
                             }).fail(function() {
                                 errorDiv.text('Erro ao conectar ao servidor do WordPress.').fadeIn();
-                                btn.prop('disabled', false).html('<span>Entrar e Acessar Extrator</span> 🚀');
+                                btn.prop('disabled', false).html('<span>Entrar e Acessar Extrator</span>');
                             });
                         });
                     });
@@ -735,28 +861,38 @@ class ExtratorQuestoesWP {
             return ob_get_clean();
         }
 
-        $api_url = !empty($atts['api_url']) ? $atts['api_url'] : get_option('extrator_api_url', 'http://127.0.0.1:5000');
-        $api_url = rtrim($api_url, '/');
+        $api_url = '';
 
-        // Carrega o arquivo HTML do template InterageQuestões
         $template_path = plugin_dir_path(__FILE__) . 'index.html';
         if (!file_exists($template_path)) {
             $template_path = plugin_dir_path(__FILE__) . 'templates/index.html';
         }
         if (!file_exists($template_path)) {
-            return '<div class="extrator-aviso">Arquivo de template visual (index.html) não localizado no plugin.</div>';
+            return '<div class="extrator-aviso">Arquivo de template visual (index.html) nao localizado no plugin.</div>';
         }
 
         $html_content = file_get_contents($template_path);
 
-        // Injeta a variável global da API no script do HTML
+        $plugin_url = plugin_dir_url(__FILE__);
+        $html_content = str_replace('href="assets/', 'href="' . esc_url($plugin_url) . 'assets/', $html_content);
+        $html_content = str_replace('src="assets/', 'src="' . esc_url($plugin_url) . 'assets/', $html_content);
+
         $wp_ajax_url = admin_url('admin-ajax.php');
         $wp_nonce = wp_create_nonce('extrator_nonce');
+        $rest_nonce = wp_create_nonce('wp_rest');
+        $rest_url = rest_url('pomaroli/v1/');
         $injection = "<script>"
-            . "window.API_BASE_URL = '" . esc_js($api_url) . "';"
             . "window.WP_AJAX_URL = '" . esc_js($wp_ajax_url) . "';"
             . "window.WP_NONCE = '" . esc_js($wp_nonce) . "';"
-            . "window.WP_PERSIST_SECRET = 'extrator_pomaroli_secret_key_2026';"
+            . "window.WP_REST_URL = '" . esc_js($rest_url) . "';"
+            . "window.WP_REST_NONCE = '" . esc_js($rest_nonce) . "';"
+            . "window.WP_CURRENT_USER_ID = " . intval(get_current_user_id()) . ";"
+            . "window.APP_CONFIG = window.APP_CONFIG || {"
+            . "  restUrl: '" . esc_js($rest_url) . "',"
+            . "  restNonce: '" . esc_js($rest_nonce) . "',"
+            . "  ajaxUrl: '" . esc_js($wp_ajax_url) . "',"
+            . "  userId: " . intval(get_current_user_id())
+            . "};"
             . "</script>";
         $html_content = preg_replace('/<\/head>/', $injection . '</head>', $html_content, 1);
 
@@ -774,7 +910,6 @@ class ExtratorQuestoesWP {
                     overflow: hidden !important;
                     background: #0b0f19 !important;
                 }
-                /* Oculta cabeçalhos, rodapés, barras e sidebars do tema WordPress em Modo Tela Cheia */
                 header.site-header, footer.site-footer, .elementor-location-header, .elementor-location-footer, #masthead, #colophon, .sidebar, #secondary, .ast-container, #page {
                     padding: 0 !important;
                     margin: 0 !important;
@@ -822,9 +957,6 @@ class ExtratorQuestoesWP {
         return ob_get_clean();
     }
 
-    /**
-     * SHORTCODE: [lista_questoes] ou [banco_questoes]
-     */
     public function shortcode_lista_questoes($atts) {
         $atts = shortcode_atts(array(
             'banca'      => '',
@@ -860,7 +992,7 @@ class ExtratorQuestoesWP {
         $query = new WP_Query($args);
 
         if (!$query->have_posts()) {
-            return '<div class="extrator-aviso">Nenhuma questão encontrada com os filtros selecionados.</div>';
+            return '<div class="extrator-aviso">Nenhuma questao encontrada com os filtros selecionados.</div>';
         }
 
         ob_start();
@@ -891,7 +1023,7 @@ class ExtratorQuestoesWP {
                         <?php if ($banca): ?><span class="badge-tag"><?php echo esc_html($banca); ?></span><?php endif; ?>
                         <?php if ($ano): ?><span class="badge-tag"><?php echo esc_html($ano); ?></span><?php endif; ?>
                         <?php if ($disciplina): ?><span class="badge-tag highlight"><?php echo esc_html($disciplina); ?></span><?php endif; ?>
-                        <?php if ($refinada_ia): ?><span class="badge-ia" title="Corrigida por IA">✨ IA Clean</span><?php endif; ?>
+                        <?php if ($refinada_ia): ?><span class="badge-ia" title="Corrigida por IA">IA Clean</span><?php endif; ?>
                     </div>
                 </div>
 
@@ -914,7 +1046,7 @@ class ExtratorQuestoesWP {
                 <div class="questao-actions mt-15">
                     <button type="button" class="btn-responder-questao" data-id="<?php echo $post_id; ?>">Responder</button>
                     <?php if ($comentario): ?>
-                        <button type="button" class="btn-toggle-comentario" data-id="<?php echo $post_id; ?>" style="display:none;">💡 Ver Comentário da IA</button>
+                        <button type="button" class="btn-toggle-comentario" data-id="<?php echo $post_id; ?>" style="display:none;">Ver Comentario da IA</button>
                     <?php endif; ?>
                 </div>
 
@@ -922,7 +1054,7 @@ class ExtratorQuestoesWP {
 
                 <?php if ($comentario): ?>
                     <div class="questao-comentario-box" id="comentario-<?php echo $post_id; ?>" style="display:none;">
-                        <h4>💬 Comentário Didático da IA:</h4>
+                        <h4>Comentario Didatico da IA:</h4>
                         <div class="comentario-conteudo"><?php echo wp_kses_post($comentario); ?></div>
                     </div>
                 <?php endif; ?>
@@ -936,16 +1068,13 @@ class ExtratorQuestoesWP {
         return ob_get_clean();
     }
 
-    /**
-     * SHORTCODE: [questao id="123"]
-     */
     public function shortcode_questao_unica($atts) {
         $atts = shortcode_atts(array(
             'id' => 0,
         ), $atts, 'questao');
 
         if (empty($atts['id'])) {
-            return '<div class="extrator-aviso">Por favor, informe o ID da questão: [questao id="123"]</div>';
+            return '<div class="extrator-aviso">Por favor, informe o ID da questao: [questao id="123"]</div>';
         }
 
         return $this->shortcode_lista_questoes(array(
@@ -954,20 +1083,19 @@ class ExtratorQuestoesWP {
         ));
     }
 
-    /**
-     * Renderiza a interface de usuário do Plugin no Admin
-     */
+    // =========================================================================
+    // RENDERIZACAO DO ADMIN
+    // =========================================================================
+
     public function renderizar_pagina_admin() {
-        $api_url = get_option('extrator_api_url', 'http://127.0.0.1:5000');
         $gemini_key = get_option('extrator_gemini_api_key', '');
         ?>
         <div class="wrap extrator-wrap">
             <div class="extrator-header">
-                <h1>⚡ Extrator de Questões AI <span class="badge-v2">v3.0.3 Multi-PDF & Tracking</span></h1>
-                <p>Envie múltiplos arquivos PDF simultaneamente. O servidor em nuvem processará em segundo plano com autocorreção via Google Gemini (IA Grátis).</p>
+                <h1>Extrator de Questoes Pomaroli <span class="badge-v2">v3.3.3 WordPress + Python</span></h1>
+                <p>Envie PDFs. O WordPress cria jobs persistentes. O Python (via cPanel) processa em segundo plano. Fechar o navegador nao interrompe nada.</p>
             </div>
 
-            <!-- CARD DE STATUS DO BANCO DE DADOS -->
             <?php
             $counts = wp_count_posts('questao');
             $total_questoes_wp = isset($counts->publish) ? $counts->publish : 0;
@@ -976,64 +1104,55 @@ class ExtratorQuestoesWP {
             <div class="extrator-card db-status-card" style="background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%); color: #fff; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.15);">
                 <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
                     <div>
-                        <h2 style="color: #a7f3d0; margin: 0 0 6px 0; font-size: 20px;">📚 Banco de Questões no WordPress</h2>
+                        <h2 style="color: #a7f3d0; margin: 0 0 6px 0; font-size: 20px;">Banco de Questoes no WordPress</h2>
                         <p style="margin: 0; font-size: 14px; opacity: 0.95;">
-                            Atualmente você possui <strong style="color: #6ee7b7; font-size: 18px;"><?php echo intval($total_questoes_wp); ?></strong> questões registradas e publicadas no banco do seu site.
+                            Atualmente voce possui <strong style="color: #6ee7b7; font-size: 18px;"><?php echo intval($total_questoes_wp); ?></strong> questoes registradas e publicadas no banco do seu site.
                         </p>
                         <?php if ($last_import_log): ?>
                             <p style="margin: 6px 0 0 0; font-size: 12px; color: #cbd5e1;">
-                                🕒 Último auto-salvamento: <strong><?php echo esc_html($last_import_log['timestamp']); ?></strong> — <?php echo intval($last_import_log['inseridos']); ?> gravadas<?php echo $last_import_log['duplicados'] > 0 ? " ({$last_import_log['duplicados']} duplicadas ignoradas)" : ''; ?> de <?php echo intval($last_import_log['total']); ?> questões recebidas.
+                                Ultimo auto-salvamento: <strong><?php echo esc_html($last_import_log['timestamp']); ?></strong> — <?php echo intval($last_import_log['inseridos']); ?> gravadas<?php echo $last_import_log['duplicados'] > 0 ? " ({$last_import_log['duplicados']} duplicadas ignoradas)" : ''; ?> de <?php echo intval($last_import_log['total']); ?> questoes recebidas.
                             </p>
                         <?php endif; ?>
                     </div>
                     <div>
                         <a href="<?php echo esc_url(admin_url('edit.php?post_type=questao')); ?>" class="button button-primary" style="background: #10b981; border-color: #059669; font-weight: bold; padding: 8px 18px; height: auto; font-size: 14px; text-decoration: none; display: inline-block;">
-                            📋 Ver Banco de Questões (<?php echo intval($total_questoes_wp); ?>)
+                            Ver Banco de Questoes (<?php echo intval($total_questoes_wp); ?>)
                         </a>
                     </div>
                 </div>
             </div>
 
-            <!-- CARD DE INSTRUÇÕES DE SHORTCODES -->
-
             <div class="extrator-card help-card">
-                <h2>📌 Shortcodes Disponíveis para Páginas do WordPress</h2>
-                <p>Copie e cole os shortcodes abaixo em qualquer página, post ou construtor visual (Elementor, Gutenberg, Divi):</p>
+                <h2>Shortcodes Disponiveis para Paginas do WordPress</h2>
+                <p>Copie e cole os shortcodes abaixo em qualquer pagina, post ou construtor visual (Elementor, Gutenberg, Divi):</p>
                 <ul>
-                    <li><code>[interage_questoes_app]</code> — Exibe a <strong>Interface Visual Completa (InterageQuestões)</strong> na sua página. Protegido automaticamente: apenas você (administrador) consegue ver e jogar PDFs!</li>
-                    <li><code>[interage_questoes_app usuario="seu_usuario"]</code> — Restringe o acesso a um usuário específico pelo nome de login.</li>
+                    <li><code>[interage_questoes_app]</code> — Exibe a <strong>Interface Visual Completa (InterageQuestoes)</strong> na sua pagina. Protegido automaticamente: apenas voce (administrador) consegue ver e jogar PDFs!</li>
+                    <li><code>[interage_questoes_app usuario="seu_usuario"]</code> — Restringe o acesso a um usuario especifico pelo nome de login.</li>
                     <li><code>[lista_questoes limite="10"]</code> — Exibe um banco interativo de simulados para os estudantes responderem.</li>
                 </ul>
             </div>
 
-            <!-- CARD DE CONFIGURAÇÕES DE API -->
             <div class="extrator-card">
-                <h2>⚙️ Configurações da API & IA</h2>
+                <h2>Configuracoes</h2>
                 <form id="form-config-extrator">
                     <div class="extrator-grid-2">
                         <div>
-                            <label>URL do Servidor Python (Nuvem ou Local):</label>
-                            <input type="url" id="config-api-url" class="regular-text" value="<?php echo esc_attr($api_url); ?>" placeholder="http://127.0.0.1:5000 ou https://seu-app.render.com" required>
-                            <small>Servidor que executa a extração determinística e a fila assíncrona.</small>
-                        </div>
-                        <div>
-                            <label>Chave da API do Google Gemini (IA Grátis):</label>
+                            <label>Chave da API do Google Gemini (para OCR/Revisao):</label>
                             <input type="password" id="config-gemini-key" class="regular-text" value="<?php echo esc_attr($gemini_key); ?>" placeholder="AIzaSy...">
-                            <small>Obtenha sua chave gratuita no <a href="https://aistudio.google.com/" target="_blank">Google AI Studio</a>.</small>
+                            <small>Obtenha sua chave gratuita no <a href="https://aistudio.google.com/" target="_blank">Google AI Studio</a>. Opcional: usada apenas para OCR e revisao IA.</small>
                         </div>
                     </div>
-                    <button type="submit" class="button button-secondary mt-15">Salvar Configurações</button>
+                    <button type="submit" class="button button-secondary mt-15">Salvar Configuracoes</button>
                 </form>
             </div>
 
-            <!-- CARD DE UPLOAD DE LOTES -->
             <div class="extrator-card">
-                <h2>📁 Upload em Lote de Provas em PDF (Até 10+ Arquivos)</h2>
+                <h2>Upload em Lote de Provas em PDF (Ate 10+ Arquivos)</h2>
                 <form id="form-upload-lote" enctype="multipart/form-data">
                     <div class="dropzone" id="dropzone-lote">
-                        <div class="dropzone-icon">📄📄📄</div>
+                        <div class="dropzone-icon">PDFs</div>
                         <h3>Arraste e solte os PDFs das provas aqui</h3>
-                        <p>ou clique para selecionar múltiplos arquivos PDF do seu computador</p>
+                        <p>ou clique para selecionar multiplos arquivos PDF do seu computador</p>
                         <input type="file" id="input-pdf-files" multiple accept="application/pdf" style="display:none;">
                     </div>
 
@@ -1046,36 +1165,35 @@ class ExtratorQuestoesWP {
                         <label class="switch-container">
                             <input type="checkbox" id="chk-autocorrigir-ia" checked>
                             <span class="slider"></span>
-                            <strong>Ativar Autocorreção via Google Gemini (IA Grátis)</strong>
-                            <small>(Corrige erros de OCR, pontuação, acentos e falta de espaço automaticamente em questões com nota < 85)</small>
+                            <strong>Ativar Autocorrecao via Google Gemini (IA Gratis)</strong>
+                            <small>(Corrige erros de OCR, pontuacao, acentos e falta de espaco automaticamente em questoes com nota &lt; 85)</small>
                         </label>
                         <label class="switch-container" style="margin-top: 12px;">
                             <input type="checkbox" id="chk-usar-ocr">
                             <span class="slider"></span>
-                            <strong>Forçar OCR via IA (PDFs Digitalizados / Escaneados)</strong>
-                            <small>(Ative esta opção se o PDF for uma imagem escaneada sem texto selecionável. Usa a chave Gemini para ler o texto via Vision.)</small>
+                            <strong>Forcar OCR via IA (PDFs Digitalizados / Escaneados)</strong>
+                            <small>(Ative esta opcao se o PDF for uma imagem escaneada sem texto selecionavel. Usa a chave Gemini para ler o texto via Vision.)</small>
                         </label>
                         <div id="ocr-modelo-container" style="margin-top: 10px; display: none; padding: 12px; background: #f9f9f9; border-radius: 6px; border: 1px solid #ddd;">
                             <label style="font-weight: bold; display: block; margin-bottom: 5px;">Modelo de IA para OCR:</label>
                             <input type="text" id="config-ocr-model" class="regular-text" value="gemini-2.5-flash" placeholder="gemini-2.5-flash" style="width: 100%;">
-                            <small>O modelo padrão é gemini-2.5-flash (gratuito). Não altere salvo se souber o que está fazendo.</small>
+                            <small>O modelo padrao e gemini-2.5-flash (gratuito). Nao altere salvo se souber o que esta fazendo.</small>
                         </div>
                     </div>
 
                     <div class="action-buttons">
                         <button type="submit" id="btn-iniciar-lote" class="button button-primary button-hero" disabled>
-                            🚀 Iniciar Processamento em Lote
+                            Iniciar Processamento em Lote
                         </button>
                     </div>
                 </form>
             </div>
 
-            <!-- CARD DE ACOMPANHAMENTO DO LOTE -->
             <div class="extrator-card" id="card-progresso-lote" style="display:none;">
                 <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 12px; gap: 10px;">
-                    <h2 style="margin:0;">📊 Progresso do Lote <span id="lote-id-tag" class="lote-tag">#---</span></h2>
+                    <h2 style="margin:0;">Progresso do Lote <span id="lote-id-tag" class="lote-tag">#---</span></h2>
                     <button type="button" id="btn-limpar-lote" class="button button-secondary" style="color: #ef4444; border-color: #fca5a5; background: #fff; font-weight: bold; cursor: pointer;">
-                        🗑️ Limpar Progresso da Tela
+                        Limpar Progresso da Tela
                     </button>
                 </div>
                 <div class="lote-status-header">
@@ -1094,19 +1212,18 @@ class ExtratorQuestoesWP {
                                 <th>#</th>
                                 <th>Arquivo PDF</th>
                                 <th>Status</th>
-                                <th>Questões Extraídas</th>
-                                <th>Autocorreção IA</th>
+                                <th>Questoes Extraidas</th>
+                                <th>Autocorrecao IA</th>
                             </tr>
                         </thead>
                         <tbody id="tbody-arquivos-lote">
-                            <!-- Preenchido via JS -->
                         </tbody>
                     </table>
                 </div>
 
                 <div class="import-actions mt-20" id="container-botao-importar" style="display:none;">
                     <button type="button" id="btn-importar-wp" class="button button-primary button-hero">
-                        💾 Importar Todas as Questões no Banco do WordPress
+                        Importar Todas as Questoes no Banco do WordPress
                     </button>
                 </div>
             </div>

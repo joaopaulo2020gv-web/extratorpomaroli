@@ -3,6 +3,8 @@ import sys
 import json
 import time
 import uuid
+import hmac
+import hashlib
 import threading
 import webbrowser
 from queue import Queue
@@ -14,6 +16,36 @@ import pandas as pd
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import extrator
 from qualidade import validar_questoes
+
+# =============================================================================
+# HMAC SIGNING PARA COMUNICAÇÃO COM WORDPRESS
+# =============================================================================
+POMAROLI_WORKER_SECRET = os.environ.get('POMAROLI_WORKER_SECRET', '')
+
+def sign_hmac_wp(payload_str):
+    """
+    Assina um payload com HMAC-SHA256 para autenticação com o WordPress.
+    Retorna headers dict com X-Pomaroli-Hmac e X-Pomaroli-Timestamp.
+    """
+    if not POMAROLI_WORKER_SECRET:
+        print("[-] AVISO: POMAROLI_WORKER_SECRET não configurado!")
+        return {
+            'X-Pomaroli-Hmac': '',
+            'X-Pomaroli-Timestamp': str(int(time.time())),
+            'Content-Type': 'application/json',
+            'User-Agent': 'ExtratorPomaroli/3.1 Worker',
+            'Accept': 'application/json',
+        }
+    timestamp = str(int(time.time()))
+    message = f"{timestamp}.{payload_str}"
+    h = hmac.new(POMAROLI_WORKER_SECRET.encode('utf-8'), message.encode('utf-8'), hashlib.sha256).hexdigest()
+    return {
+        'X-Pomaroli-Hmac': h,
+        'X-Pomaroli-Timestamp': timestamp,
+        'Content-Type': 'application/json',
+        'User-Agent': 'ExtratorPomaroli/3.1 Worker',
+        'Accept': 'application/json',
+    }
 
 app = Flask(__name__, template_folder='templates')
 # Usa UPLOAD_FOLDER do environment (disco persistente no Render: /data/uploads)
@@ -185,18 +217,13 @@ def worker_processar_lotes():
                     lote["total_questoes_extraidas"] += len(questoes)
                     salvar_lotes_disk()
                     
-                    # Envio Automático robusto para o Banco de Dados do WordPress (com User-Agent e Chunking)
+                    # Envio Automático robusto para o Banco de Dados do WordPress (com HMAC)
                     wp_site_url = lote.get("wp_site_url")
                     if wp_site_url and len(questoes) > 0:
                         try:
                             import json, requests
-                            endpoint_wp = wp_site_url.rstrip("/") + "/wp-admin/admin-ajax.php"
+                            endpoint_wp = wp_site_url.rstrip("/") + "/wp-json/pomaroli/v1/worker/questions"
                             print(f"[+] Enviando {len(questoes)} questões automaticamente para o WordPress em: {endpoint_wp}")
-                            
-                            headers = {
-                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 ExtratorPomaroli/2.9',
-                                'Accept': 'application/json, text/plain, */*'
-                            }
                             
                             # Envia em blocos de 10 questões por requisição HTTP para evitar bloqueios ou timeouts
                             chunk_size = 10
@@ -205,11 +232,17 @@ def worker_processar_lotes():
                             
                             for i in range(0, len(questoes), chunk_size):
                                 chunk = questoes[i:i + chunk_size]
-                                payload = {
-                                    "action": "extrator_importar_banco_auto",
-                                    "secret": "extrator_pomaroli_secret_key_2026",
-                                    "questoes": json.dumps(chunk)
-                                }
+                                payload = json.dumps({
+                                    "job_id": lote.get("wp_job_id", 0),
+                                    "questions": [{
+                                        "job_id": lote.get("wp_job_id", 0),
+                                        "file_index": item.get("index", 0),
+                                        "question_number": q.get("Numero", i + j + 1),
+                                        "question_data": q,
+                                        "status": "extraida",
+                                    } for j, q in enumerate(chunk)]
+                                })
+                                headers = sign_hmac_wp(payload)
                                 res = requests.post(endpoint_wp, data=payload, headers=headers, timeout=60)
                                 status_respostas.append(f"Bloco {i//chunk_size + 1}: HTTP {res.status_code} - {res.text[:80]}")
                                 if res.status_code == 200:
@@ -233,6 +266,31 @@ def worker_processar_lotes():
             lote["status"] = "concluido" if not lote.get("cancelado") else "cancelado"
             lote["fim"] = time.time()
             salvar_lotes_disk()
+            
+            # Callback final: Notifica o WordPress sobre conclusão do job (com HMAC)
+            wp_site_url = lote.get("wp_site_url")
+            if wp_site_url:
+                try:
+                    import requests as req_lib
+                    endpoint_cb = wp_site_url.rstrip("/") + "/wp-json/pomaroli/v1/worker/complete"
+                    
+                    # Coleta contagem total de questões
+                    total_questoes = lote.get("total_questoes_extraidas", 0)
+                    
+                    payload_complete = json.dumps({
+                        "job_id": lote.get("wp_job_id", 0),
+                        "success": lote["status"] == "concluido",
+                        "total_questions": total_questoes,
+                        "processed_files": len(lote.get("arquivos", [])),
+                        "error_message": None if lote["status"] == "concluido" else "Erro no processamento",
+                    })
+                    
+                    headers_cb = sign_hmac_wp(payload_complete)
+                    res_cb = req_lib.post(endpoint_cb, data=payload_complete, headers=headers_cb, timeout=30)
+                    print(f"[+] Callback worker_complete para WordPress: HTTP {res_cb.status_code} - {res_cb.text[:120]}")
+                except Exception as err_cb:
+                    print(f"[-] Erro no callback worker_complete para WordPress: {err_cb}")
+            
             FILA_LOTES.task_done()
             
         except Exception as e:
@@ -273,9 +331,34 @@ def atualizar_progresso(pagina_atual=None, total_paginas=None, questoes_encontra
 extrator.atualizar_progresso = atualizar_progresso
 
 @app.route('/')
+@app.route('/python-worker/')
 def index():
-    """Renderiza a página principal da interface visual."""
-    return render_template('index.html')
+    """Renderiza a página principal da interface visual ou info json."""
+    if request.headers.get('Accept') == 'application/json' or request.args.get('format') == 'json':
+        return jsonify({
+            "service": "Pomaroli Python Worker",
+            "status": "running",
+            "version": "3.3.4",
+            "endpoints": {
+                "/": "Informacoes do servico",
+                "/health": "Health check",
+                "/worker/status": "Status do worker (lock, config)"
+            }
+        })
+    try:
+        return render_template('index.html')
+    except Exception:
+        return jsonify({
+            "service": "Pomaroli Python Worker",
+            "status": "running",
+            "version": "3.3.4"
+        })
+
+@app.route('/health')
+@app.route('/python-worker/health')
+def health():
+    """Health check do backend Python."""
+    return jsonify({"status": "ok"})
 
 @app.route('/preview')
 def preview():
@@ -922,6 +1005,43 @@ def lote_ultimo():
         return jsonify({"erro": "Nenhum lote recente encontrado."}), 404
     ultimo_id = list(DADOS_LOTES.keys())[-1]
     return obter_status_tarefa(ultimo_id)
+
+
+# ==============================================================================
+# ENDPOINT WORKER — PROCESSAMENTO PERSISTENTE (Turbo Cloud / cPanel)
+# ==============================================================================
+
+@app.route('/worker/run', methods=['POST', 'GET'])
+@app.route('/python-worker/worker/run', methods=['POST', 'GET'])
+def worker_run():
+    """Endpoint chamado pelo cron do cPanel para processar um bloco de PDFs.
+    
+    Recebe token via query param ou header.
+    Verifica lock → busca job → processa bloco → salva → libera → encerra.
+    """
+    from worker import run_worker, WORKER_TOKEN
+
+    token = request.args.get('token', '')
+    if not token:
+        token = request.headers.get('X-Worker-Token', '')
+
+    resultado, status_code = run_worker(token)
+    return jsonify(resultado), status_code
+
+
+@app.route('/worker/status', methods=['GET'])
+@app.route('/python-worker/worker/status', methods=['GET'])
+def worker_status():
+    """Verifica status do worker (se há lock ativo, último processamento, etc.)."""
+    from worker import LOCK_FILE
+    import os
+
+    lock_ativo = os.path.exists(LOCK_FILE)
+    return jsonify({
+        'lock_ativo': lock_ativo,
+        'wp_site_url': os.environ.get('WP_SITE_URL', ''),
+        'worker_token_configurado': bool(os.environ.get('POMAROLI_WORKER_TOKEN', '')),
+    })
 
 
 

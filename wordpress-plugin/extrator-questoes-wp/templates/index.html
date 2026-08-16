@@ -1455,7 +1455,7 @@
             <button id="btn-fullscreen-toggle" onclick="toggleFullscreenApp()" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #ffffff; padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s ease;">
                 <i class="fa-solid fa-expand"></i> <span>Expandir Tela</span>
             </button>
-            <span class="header-tag">Extrator Pomaroli v3.0.16</span>
+            <span class="header-tag">Extrator Pomaroli v3.0.17</span>
         </div>
     </header>
     <script>
@@ -2079,7 +2079,26 @@
         let questoesSelecionadas = new Set();
         let selectedFiles = [];
         let currentBatchId = localStorage.getItem('extrator_active_batch_id') || null;
+        let wpJobId = null;
         let batchPollingInterval = null;
+
+        function wpNonceHeaders() {
+            return { 'X-WP-Nonce': window.WP_REST_NONCE || '' };
+        }
+
+        function mapWpDataToUI(job) {
+            if (!job || job.error || job.code) return { status: 'erro', arquivos: [], total_files: 0, total_questoes_extraidas: 0 };
+            const files = job.files || [];
+            const statusMap = { 'aguardando': 'queued', 'enviando': 'processing', 'extraindo': 'processing', 'processando': 'processing', 'concluido': 'completed', 'erro': 'failed', 'cancelado': 'cancelled', 'canceled': 'cancelled' };
+            return {
+                status: statusMap[job.status] || job.status,
+                total_files: job.total_files || files.length,
+                completed_files: files.filter(f => f.status === 'concluido' || f.status === 'completed').length,
+                failed_files: files.filter(f => f.status === 'erro' || f.status === 'failed').length,
+                total_questoes_extraidas: job.total_questions || 0,
+                arquivos: files.map(f => ({ filename: f.filename, status: f.status, total_questoes: f.questions_found || 0, error_message: f.error_message || '' }))
+            };
+        }
         
         // ============================================
         // MULTI-FILE UPLOAD & BATCH PROCESSING
@@ -2211,33 +2230,38 @@
             formData.append('wp_site_url', wpUrl);
 
             const MAX_TENTATIVAS = 3;
-            const TIMEOUT_MS = 120000; // 120s por tentativa (Render cold start)
+            const TIMEOUT_MS = 120000; // 120s por tentativa
 
             async function enviarLoteComRetry(tentativa) {
                 exibirLoader(true, tentativa === 1
                     ? `Enviando ${selectedFiles.length} PDF${selectedFiles.length > 1 ? 's' : ''} para a fila em segundo plano...`
-                    : `Acordando servidor no Render (tentativa ${tentativa}/${MAX_TENTATIVAS})... Pode levar até 60s.`);
+                    : `Tentativa ${tentativa}/${MAX_TENTATIVAS}... Pode levar alguns segundos.`);
 
                 const controller = new AbortController();
                 const timerId = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
                 try {
-                    const response = await fetch((window.API_BASE_URL || '') + '/api/upload-pdf', {
+                    const wpUploadUrl = '/wp-json/pomaroli/v1/upload-local';
+                    formData.append('nonce', window.WP_REST_NONCE || '');
+                    const response = await fetch(wpUploadUrl, {
                         method: 'POST',
                         body: formData,
+                        credentials: 'same-origin',
+                        headers: wpNonceHeaders(),
                         signal: controller.signal
                     });
                     clearTimeout(timerId);
                     const data = await response.json();
                     exibirLoader(false);
                     
-                    if (data.erro) {
-                        mostrarAlerta(data.erro, "error");
+                    if (data.error || data.code) {
+                        mostrarAlerta(data.message || data.error || "Erro no upload.", "error");
                     } else {
-                        currentBatchId = data.task_id || data.batch_id;
+                        currentBatchId = data.batch_id;
+                        wpJobId = data.job ? data.job.id : null;
                         localStorage.setItem('extrator_active_batch_id', currentBatchId);
                         
-                        mostrarAlerta(data.mensagem || `Upload concluído! Tarefa #${currentBatchId} na fila.`, "success");
+                        mostrarAlerta(data.message || `Upload concluído! Tarefa #${currentBatchId} na fila.`, "success");
                         dispararNotificacao("Fila Iniciada", `${selectedFiles.length} PDF(s) enviados para processamento em segundo plano!`);
                         
                         selectedFiles = [];
@@ -2257,7 +2281,7 @@
                     exibirLoader(false);
                     let msgErro = "Erro de rede ao enviar PDFs para a fila de processamento.";
                     if (err.name === 'AbortError') {
-                        msgErro = "O servidor demorou demais para responder (timeout). O Render pode estar hibernando, tente novamente em alguns segundos.";
+                        msgErro = "O servidor demorou demais para responder (timeout). Tente novamente em alguns segundos.";
                     }
                     mostrarAlerta(msgErro, "error");
                     console.error("Erro no upload para a fila:", err);
@@ -2283,12 +2307,17 @@
             // Polling assíncrono a cada 3 segundos (respeita fechamento de aba)
             batchPollingInterval = setInterval(async () => {
                 try {
-                    const response = await fetch((window.API_BASE_URL || '') + `/api/tasks/${batchId}`);
-                    const data = await response.json();
+                    const jobId = wpJobId || batchId;
+                    const response = await fetch(`/wp-json/pomaroli/v1/jobs/${jobId}`, {
+                        credentials: 'same-origin',
+                        headers: wpNonceHeaders()
+                    });
+                    const wpData = await response.json();
+                    const data = mapWpDataToUI(wpData);
                     
                     updateBatchTrackingUI(data);
                     
-                    const isDone = data.status === 'completed' || data.status === 'concluido' || data.status === 'canceled' || data.status === 'failed' || data.status === 'erro';
+                    const isDone = data.status === 'completed' || data.status === 'concluido' || data.status === 'cancelled' || data.status === 'failed' || data.status === 'erro';
                     if (isDone) {
                         clearInterval(batchPollingInterval);
                         batchPollingInterval = null;
@@ -2304,18 +2333,23 @@
 
                             // Auto-salva no WordPress quando concluído
                             try {
-                                const fullResp = await fetch((window.API_BASE_URL || '') + `/api/tasks/${batchId}?incluir_questoes=true`);
-                                const fullData = await fullResp.json();
+                                const jobData = await fetch(`/wp-json/pomaroli/v1/jobs/${jobId}`, {
+                                    credentials: 'same-origin',
+                                    headers: wpNonceHeaders()
+                                }).then(r => r.json());
+                                const questionData = await fetch(`/wp-json/pomaroli/v1/questions?job_id=${jobId}&per_page=500`, {
+                                    credentials: 'same-origin',
+                                    headers: wpNonceHeaders()
+                                }).then(r => r.json());
                                 let allQuestoes = [];
-                                if (fullData.arquivos) {
-                                    fullData.arquivos.forEach(arq => {
-                                        if (arq.questoes && arq.questoes.length > 0) {
-                                            allQuestoes = allQuestoes.concat(arq.questoes);
-                                        }
+                                if (questionData.items && questionData.items.length > 0) {
+                                    allQuestoes = questionData.items.map(q => {
+                                        const d = typeof q.question_data === 'string' ? JSON.parse(q.question_data) : (q.question_data || {});
+                                        return d;
                                     });
                                 }
                                 if (allQuestoes.length > 0) {
-                                    const nomeArq = fullData.arquivos && fullData.arquivos[0] ? fullData.arquivos[0].filename : '';
+                                    const nomeArq = jobData.files && jobData.files[0] ? jobData.files[0].filename : '';
                                     await salvarLoteNoWordPress(batchId, allQuestoes, nomeArq);
                                 }
                             } catch (e) {
@@ -2342,6 +2376,7 @@
                 'processando': 'processando',
                 'completed': 'concluido',
                 'concluido': 'concluido',
+                'cancelled': 'cancelado',
                 'canceled': 'cancelado',
                 'cancelado': 'cancelado',
                 'failed': 'erro',
@@ -2358,6 +2393,7 @@
                 'processando': 'Processando...',
                 'completed': 'Concluído',
                 'concluido': 'Concluído',
+                'cancelled': 'Cancelado',
                 'canceled': 'Cancelado',
                 'cancelado': 'Cancelado',
                 'failed': 'Erro na Fila',
@@ -2430,13 +2466,18 @@
             if (!currentBatchId) return;
             exibirLoader(true, "Reenfileirando arquivos com erro para nova tentativa...");
             try {
-                const response = await fetch((window.API_BASE_URL || '') + `/api/tasks/${currentBatchId}/retry`, { method: 'POST' });
+                const jobId = wpJobId || currentBatchId;
+                const response = await fetch(`/wp-json/pomaroli/v1/jobs/${jobId}/retry`, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: wpNonceHeaders()
+                });
                 const data = await response.json();
                 exibirLoader(false);
-                if (data.erro) {
-                    mostrarAlerta(data.erro, "error");
+                if (data.error || data.code) {
+                    mostrarAlerta(data.message || data.error || "Erro ao reenfileirar.", "error");
                 } else {
-                    mostrarAlerta(data.mensagem, "success");
+                    mostrarAlerta("Arquivos com erro reenfileirados com sucesso!", "success");
                     document.getElementById('batch-loading-bar').style.display = 'block';
                     document.getElementById('btn-retry-batch').style.display = 'none';
                     startBatchPolling(currentBatchId);
@@ -2453,12 +2494,15 @@
             if (!confirm("Tem certeza que deseja cancelar a fila de processamento deste lote?")) return;
             
             try {
-                const response = await fetch((window.API_BASE_URL || '') + `/api/tasks/${currentBatchId}`, {
-                    method: 'DELETE'
+                const jobId = wpJobId || currentBatchId;
+                const response = await fetch(`/wp-json/pomaroli/v1/jobs/${jobId}/cancel`, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: wpNonceHeaders()
                 });
                 
                 const data = await response.json();
-                mostrarAlerta(data.mensagem || "Fila cancelada com sucesso.", "success");
+                mostrarAlerta(data.message || "Fila cancelada com sucesso.", "success");
                 
                 if (batchPollingInterval) {
                     clearInterval(batchPollingInterval);
@@ -2481,15 +2525,24 @@
             exibirLoader(true, "Carregando questões extraídas do lote...");
             
             try {
-                const response = await fetch((window.API_BASE_URL || '') + `/api/tasks/${currentBatchId}?incluir_questoes=true`);
-                const data = await response.json();
+                const jobId = wpJobId || currentBatchId;
+                const jobResp = await fetch(`/wp-json/pomaroli/v1/jobs/${jobId}`, {
+                    credentials: 'same-origin',
+                    headers: wpNonceHeaders()
+                });
+                const jobData = await jobResp.json();
+                
+                const qResp = await fetch(`/wp-json/pomaroli/v1/questions?job_id=${jobId}&per_page=500`, {
+                    credentials: 'same-origin',
+                    headers: wpNonceHeaders()
+                });
+                const qData = await qResp.json();
                 
                 questoes = [];
-                if (data.arquivos) {
-                    data.arquivos.forEach(arq => {
-                        if (arq.questoes && arq.questoes.length > 0) {
-                            questoes = questoes.concat(arq.questoes);
-                        }
+                if (qData.items && qData.items.length > 0) {
+                    questoes = qData.items.map(q => {
+                        const d = typeof q.question_data === 'string' ? JSON.parse(q.question_data) : (q.question_data || {});
+                        return d;
                     });
                 }
                 
@@ -2506,10 +2559,10 @@
                 document.getElementById('workspace').style.display = 'grid';
                 
                 renderizarInterface();
-                const totalConcluidos = data.completed_files !== undefined ? data.completed_files : data.concluidos;
+                const totalConcluidos = jobData.files ? jobData.files.filter(f => f.status === 'concluido' || f.status === 'completed').length : 0;
                 mostrarAlerta(`${questoes.length} questões carregadas de ${totalConcluidos} PDF(s)!`, "success");
                 
-                salvarLoteNoWordPress(currentBatchId, questoes, data.arquivos && data.arquivos[0] ? data.arquivos[0].filename : '');
+                salvarLoteNoWordPress(currentBatchId, questoes, jobData.files && jobData.files[0] ? jobData.files[0].filename : '');
                 salvarQuestoesLocal();
                 carregarHistoricoServidor();
                 
@@ -2536,10 +2589,19 @@
 
         async function carregarHistoricoServidor() {
             try {
-                const response = await fetch((window.API_BASE_URL || '') + '/api/lote/listar');
+                const response = await fetch('/wp-json/pomaroli/v1/jobs?per_page=50', {
+                    credentials: 'same-origin',
+                    headers: { 'X-WP-Nonce': window.WP_REST_NONCE || '' }
+                });
                 const data = await response.json();
-                if (data.lotes && Array.isArray(data.lotes)) {
-                    serverLotesCache = data.lotes;
+                if (data.items && Array.isArray(data.items)) {
+                    serverLotesCache = data.items.map(job => ({
+                        batch_id: job.batch_id_externo || ('job_' + job.id),
+                        status: job.status,
+                        total_arquivos: job.total_files,
+                        total_questoes_extraidas: job.total_questions,
+                        created_at: job.created_at,
+                    }));
                     const panel = document.getElementById('server-history-panel');
                     const list = document.getElementById('server-history-list');
                     if (panel && list) {
@@ -2599,16 +2661,20 @@
         }
 
         async function carregarLoteServidor(batchId, mesclar = false) {
-            exibirLoader(true, "Carregando questões do lote no servidor...");
+            exibirLoader(true, "Carregando questões do job no WordPress...");
             try {
-                const response = await fetch((window.API_BASE_URL || '') + `/api/lote/status/${batchId}?incluir_questoes=true`);
+                const jobId = batchId.replace('job_', '');
+                const response = await fetch(`/wp-json/pomaroli/v1/jobs/${jobId}`, {
+                    credentials: 'same-origin',
+                    headers: { 'X-WP-Nonce': window.WP_REST_NONCE || '' }
+                });
                 const data = await response.json();
                 
                 let novasQuestoes = [];
-                if (data.arquivos) {
-                    data.arquivos.forEach(arq => {
-                        if (arq.questoes && arq.questoes.length > 0) {
-                            novasQuestoes = novasQuestoes.concat(arq.questoes);
+                if (data.files) {
+                    data.files.forEach(file => {
+                        if (file.questions_found > 0) {
+                            novasQuestoes.push({ filename: file.filename, questions_found: file.questions_found });
                         }
                     });
                 }
@@ -2654,12 +2720,17 @@
         }
 
         async function excluirLoteServidor(batchId) {
-            if (!confirm(`Deseja excluir o lote #${batchId} do servidor? Esta ação não afetará suas questões abertas.`)) return;
+            if (!confirm(`Deseja excluir o job #${batchId} do WordPress? Esta ação não afetará suas questões abertas.`)) return;
             try {
-                const response = await fetch((window.API_BASE_URL || '') + `/api/lote/excluir/${batchId}`, { method: 'POST' });
+                const jobId = batchId.replace('job_', '');
+                const response = await fetch(`/wp-json/pomaroli/v1/jobs/${jobId}`, {
+                    method: 'DELETE',
+                    credentials: 'same-origin',
+                    headers: { 'X-WP-Nonce': window.WP_REST_NONCE || '' }
+                });
                 const data = await response.json();
-                if (data.mensagem) {
-                    mostrarAlerta(data.mensagem, "success");
+                if (data.message) {
+                    mostrarAlerta(data.message, "success");
                     if (currentBatchId === batchId) {
                         currentBatchId = null;
                         localStorage.removeItem('extrator_active_batch_id');
@@ -2667,10 +2738,10 @@
                     }
                     carregarHistoricoServidor();
                 } else {
-                    mostrarAlerta(data.erro || "Erro ao excluir lote", "error");
+                    mostrarAlerta(data.error || "Erro ao excluir job", "error");
                 }
             } catch (e) {
-                mostrarAlerta("Erro de rede ao excluir lote.", "error");
+                mostrarAlerta("Erro de rede ao excluir job.", "error");
             }
         }
 
@@ -2693,11 +2764,16 @@
                     return;
                 }
             
-                const response = await fetch((window.API_BASE_URL || '') + `/api/tasks/${currentBatchId}`);
-                const data = await response.json();
+                const response = await fetch(`/wp-json/pomaroli/v1/jobs/${currentBatchId}`, {
+                    credentials: 'same-origin',
+                    headers: wpNonceHeaders()
+                });
+                const wpData = await response.json();
+                const data = mapWpDataToUI(wpData);
+                wpJobId = wpData.id || null;
                 
-                if (data.erro) {
-                    console.log('[Recovery] Lote não encontrado no Render, tentando WordPress...');
+                if (wpData.error || wpData.code) {
+                    console.log('[Recovery] Lote não encontrado no WP, tentando WordPress local...');
                     const carregouWP = await carregarLoteDoWordPress(currentBatchId);
                     if (!carregouWP) {
                         localStorage.removeItem('extrator_active_batch_id');
@@ -2710,9 +2786,9 @@
                 showBatchTrackingPanel(currentBatchId);
                 updateBatchTrackingUI(data);
                 
-                if (data.status === 'concluido' || data.status === 'cancelado') {
+                if (data.status === 'completed' || data.status === 'concluido' || data.status === 'cancelled' || data.status === 'cancelado') {
                     document.getElementById('batch-loading-bar').style.display = 'none';
-                    if (data.status === 'concluido' && data.total_questoes_extraidas > 0) {
+                    if ((data.status === 'completed' || data.status === 'concluido') && data.total_questoes_extraidas > 0) {
                         document.getElementById('btn-view-results').style.display = 'flex';
                         document.getElementById('btn-cancel-batch').style.display = 'none';
                         
@@ -2727,7 +2803,7 @@
                     startBatchPolling(currentBatchId);
                 }
             } catch (err) {
-                console.log('[Recovery] Erro ao buscar no Render, tentando WordPress...');
+                console.log('[Recovery] Erro ao buscar dados, tentando WordPress...');
                 const carregouWP = await carregarLoteDoWordPress(currentBatchId);
                 if (!carregouWP) {
                     localStorage.removeItem('extrator_active_batch_id');
@@ -2758,7 +2834,7 @@
         }
 
         // =========================================================================
-        // PERSISTÊNCIA WORDPRESS: Salvar/Carregar lotes localmente (sobrevive ao Render)
+        // PERSISTÊNCIA WORDPRESS: Salvar/Carregar lotes localmente
         // =========================================================================
 
         async function salvarLoteNoWordPress(batchId, questoes, nomeArquivo) {
@@ -2773,7 +2849,7 @@
                 formData.append('batch_id', batchId);
                 formData.append('questoes', JSON.stringify(questoes));
                 formData.append('nome_arquivo', nomeArquivo);
-                formData.append('status', 'concluido');
+                formData.append('status', 'completed');
 
                 const resp = await fetch(window.WP_AJAX_URL, { method: 'POST', body: formData });
                 const result = await resp.json();
@@ -2833,7 +2909,7 @@
                                     <span>${l.total} questões — ${l.timestamp}</span>
                                 </div>
                                 <div style="display: flex; align-items: center; gap: 10px;">
-                                    <div class="wp-history-status batch-status-${l.status}">${l.status === 'concluido' ? 'Concluído' : l.status}</div>
+                                    <div class="wp-history-status batch-status-${l.status}">${(l.status === 'completed' || l.status === 'concluido') ? 'Concluído' : l.status}</div>
                                     <button onclick="event.stopPropagation(); excluirLoteWordPress('${l.batch_id}', '${(l.nome_arquivo || 'PDF sem nome').replace(/'/g, "\\'")}')" title="Excluir lote" style="background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: #f87171; padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; font-family: var(--font-inter);">
                                         <i class="fa-solid fa-trash"></i>
                                     </button>
@@ -2940,62 +3016,49 @@
         let progressoEventSource = null;
         
         function iniciarProgressoSSE() {
-            // Inicia o polling de progresso via SSE
+            // Inicia o polling de progresso via WP REST API
             const container = document.getElementById('progress-container');
             container.style.display = 'flex';
             
-            progressoEventSource = new EventSource((window.API_BASE_URL || '') + '/api/progresso');
-            progressoEventSource.onmessage = function(event) {
+            if (progressoEventSource) clearInterval(progressoEventSource);
+            progressoEventSource = setInterval(async () => {
                 try {
-                    const data = JSON.parse(event.data);
+                    const resp = await fetch('/wp-json/pomaroli/v1/jobs?per_page=1&orderby=created_at&order=DESC', {
+                        credentials: 'same-origin',
+                        headers: wpNonceHeaders()
+                    });
+                    const jobsData = await resp.json();
+                    if (!jobsData.items || jobsData.items.length === 0) return;
+                    const job = jobsData.items[0];
+                    const files = job.files || [];
+                    const totalFiles = job.total_files || files.length;
+                    const completed = files.filter(f => f.status === 'concluido' || f.status === 'completed').length;
+                    const pct = totalFiles > 0 ? Math.round((completed / totalFiles) * 100) : 0;
                     
-                    // Atualiza barra de progresso
-                    if (data.total_paginas > 0) {
-                        const pct = Math.round((data.pagina_atual / data.total_paginas) * 100);
-                        document.getElementById('progress-bar-fill').style.width = pct + '%';
-                        document.getElementById('progress-pages').textContent = 
-                            `${data.pagina_atual}/${data.total_paginas} p\u00e1ginas`;
-                    }
+                    document.getElementById('progress-bar-fill').style.width = pct + '%';
+                    document.getElementById('progress-pages').textContent = `${completed}/${totalFiles} arquivos`;
+                    document.getElementById('progress-questions').textContent = `${job.total_questions || 0} questões`;
+                    document.getElementById('progress-eta').textContent = pct >= 100 ? 'Finalizando...' : `~${Math.max(0, totalFiles - completed)} arquivo(s) restante(s)`;
+                    document.getElementById('progress-detail').textContent = `Processando lote no servidor... (${pct}%)`;
+                    document.getElementById('loader-text-msg').textContent = `Processando lote no servidor... (${pct}%)`;
                     
-                    // Atualiza contagem de questões
-                    document.getElementById('progress-questions').textContent = 
-                        `${data.questoes_encontradas || 0} quest\u00f5es`;
-                    
-                    // Calcula ETA
-                    if (data.tempo_por_pagina > 0 && data.total_paginas > 0 && data.pagina_atual > 0) {
-                        const restantes = data.total_paginas - data.pagina_atual;
-                        const etaSegundos = Math.round(restantes * data.tempo_por_pagina);
-                        if (etaSegundos > 60) {
-                            const min = Math.floor(etaSegundos / 60);
-                            const seg = etaSegundos % 60;
-                            document.getElementById('progress-eta').textContent = `~${min}m ${seg}s restantes`;
-                        } else if (etaSegundos > 0) {
-                            document.getElementById('progress-eta').textContent = `~${etaSegundos}s restantes`;
-                        } else {
-                            document.getElementById('progress-eta').textContent = 'Finalizando...';
+                    if (job.status === 'completed' || job.status === 'concluido' || job.status === 'failed' || job.status === 'erro' || job.status === 'cancelled' || job.status === 'cancelado') {
+                        clearInterval(progressoEventSource);
+                        progressoEventSource = null;
+                        if (job.status === 'completed' || job.status === 'concluido') {
+                            document.getElementById('progress-bar-fill').style.width = '100%';
+                            document.getElementById('progress-eta').textContent = 'Concluído!';
                         }
                     }
-                    
-                    // Atualiza texto de detalhe e título principal
-                    if (data.etapa) {
-                        document.getElementById('progress-detail').textContent = data.etapa;
-                        document.getElementById('loader-text-msg').textContent = data.etapa;
-                    }
-                    
-                    // Se concluiu, fecha o SSE
-                    if (!data.ativo || data.etapa === 'concluido') {
-                        pararProgressoSSE();
-                    }
-                } catch(e) {}
-            };
-            progressoEventSource.onerror = function() {
-                pararProgressoSSE();
-            };
+                } catch(e) {
+                    console.error("Erro no polling de progresso:", e);
+                }
+            }, 3000);
         }
         
         function pararProgressoSSE() {
             if (progressoEventSource) {
-                progressoEventSource.close();
+                clearInterval(progressoEventSource);
                 progressoEventSource = null;
             }
         }
@@ -3108,24 +3171,36 @@
                 formData.append('model', model);
                 formData.append('endpoint', endpoint);
 
-                fetch((window.API_BASE_URL || '') + '/api/gabarito-gemini', {
+                fetch('/wp-admin/admin-ajax.php', {
                     method: 'POST',
-                    body: formData
+                    body: (function() {
+                        const fd = new FormData();
+                        fd.append('action', 'extrator_gabarito_ia');
+                        fd.append('nonce', window.WP_REST_NONCE || '');
+                        fd.append('gabarito_pdf', fileProcessado);
+                        fd.append('provedor', provider);
+                        fd.append('api_key', apiKey);
+                        fd.append('model', model);
+                        fd.append('endpoint', endpoint);
+                        return fd;
+                    })()
                 })
                 .then(res => res.json())
                 .then(data => {
                     exibirLoader(false);
                     event.target.value = "";
                     
-                    if (data.erro) {
-                        mostrarAlerta(data.erro, "error");
-                    } else {
-                        mostrarAlerta(data.mensagem, "success");
+                    if (!data.success && data.data && data.data.error) {
+                        mostrarAlerta(data.data.error, "error");
+                    } else if (data.data && data.data.gabaritos) {
+                        mostrarAlerta(data.data.mensagem || "Gabarito extraído com sucesso!", "success");
                         dispararNotificacao("Gabarito Mapeado", "O gabarito oficial foi extraído e aplicado com sucesso!");
-                        Object.keys(data.gabaritos).forEach(num => {
-                            marcarLetraGabarito(parseInt(num), data.gabaritos[num], false);
+                        Object.keys(data.data.gabaritos).forEach(num => {
+                            marcarLetraGabarito(parseInt(num), data.data.gabaritos[num], false);
                         });
                         renderizarInterface();
+                    } else {
+                        mostrarAlerta("Gabarito processado.", "success");
                     }
                 })
                 .catch(err => {
@@ -3867,22 +3942,24 @@
                 atualizarProgresso(i + 1, total, `Gerando explicações via ${provider.toUpperCase()} para a Questão ${q.Numero} de ${total}...`);
                 
                 try {
-                    const response = await fetch((window.API_BASE_URL || '') + '/api/gerar-comentario', {
+                    const response = await fetch('/wp-admin/admin-ajax.php', {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            questao: q,
-                            gabarito: q.Gabarito,
-                            provedor: provider,
-                            api_key: apiKey,
-                            model: model,
-                            endpoint: endpoint
-                        })
+                        body: (function() {
+                            const fd = new FormData();
+                            fd.append('action', 'extrator_gerar_comentario');
+                            fd.append('nonce', window.WP_REST_NONCE || '');
+                            fd.append('questao', JSON.stringify(q));
+                            fd.append('gabarito', q.Gabarito);
+                            fd.append('provedor', provider);
+                            fd.append('api_key', apiKey);
+                            fd.append('model', model);
+                            fd.append('endpoint', endpoint);
+                            return fd;
+                        })()
                     });
                     
-                    const data = await response.json();
+                    const rawData = await response.json();
+                    const data = { erro: (!rawData.success && rawData.data && rawData.data.error) ? rawData.data.error : null, questao: rawData.data && rawData.data.questao ? rawData.data.questao : null };
                     if (data.erro) {
                         const msgErro = data.erro.toLowerCase();
                         
@@ -4042,21 +4119,23 @@
                 atualizarProgresso(i + 1, total, `Limpando ruídos via ${provider.toUpperCase()} da Questão ${q.Numero} de ${total}...`);
                 
                 try {
-                    const response = await fetch((window.API_BASE_URL || '') + '/api/refinar-questao', {
+                    const response = await fetch('/wp-admin/admin-ajax.php', {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            questao: q,
-                            provedor: provider,
-                            api_key: apiKey,
-                            model: model,
-                            endpoint: endpoint
-                        })
+                        body: (function() {
+                            const fd = new FormData();
+                            fd.append('action', 'extrator_refinar_questao');
+                            fd.append('nonce', window.WP_REST_NONCE || '');
+                            fd.append('questao', JSON.stringify(q));
+                            fd.append('provedor', provider);
+                            fd.append('api_key', apiKey);
+                            fd.append('model', model);
+                            fd.append('endpoint', endpoint);
+                            return fd;
+                        })()
                     });
                     
-                    const data = await response.json();
+                    const rawData = await response.json();
+                    const data = { erro: (!rawData.success && rawData.data && rawData.data.error) ? rawData.data.error : null, questao: rawData.data && rawData.data.questao ? rawData.data.questao : null };
                     if (data.erro) {
                         const msgErro = data.erro.toLowerCase();
                         
@@ -4175,30 +4254,26 @@
 
             exibirLoader(true, "Montando planilha e gravando arquivo CSV de importação...");
 
-            fetch((window.API_BASE_URL || '') + '/api/exportar', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    questoes: questoes
-                })
-            })
-            .then(res => res.json())
-            .then(data => {
+            try {
+                const headers = ['Numero','Enunciado','Texto_Associado','Opcao_A','Opcao_B','Opcao_C','Opcao_D','Opcao_E','Gabarito','Disciplina','Assunto','Banca','Instituicao','Cargo','Ano','Comentario'];
+                const escCsv = (v) => '"' + String(v || '').replace(/"/g, '""') + '"';
+                let csv = headers.join(',') + '\n';
+                questoes.forEach(q => {
+                    csv += headers.map(h => escCsv(q[h])).join(',') + '\n';
+                });
+                const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'questoes_exportadas.csv';
+                a.click();
+                URL.revokeObjectURL(url);
                 exibirLoader(false);
-                if (data.erro) {
-                    mostrarAlerta(data.erro, "error");
-                } else {
-                    mostrarAlerta(data.mensagem, "success");
-                    // Baixa o arquivo gerado via navegador
-                    window.location.href = '/api/baixar-csv';
-                }
-            })
-            .catch(err => {
+                mostrarAlerta("CSV exportado com sucesso!", "success");
+            } catch(err) {
                 exibirLoader(false);
-                mostrarAlerta("Erro de rede ao exportar planilhas.", "error");
-            });
+                mostrarAlerta("Erro ao exportar CSV: " + err.message, "error");
+            }
         }
 
         // 8. Salva as questões e imagens em um arquivo JSON local e baixa
@@ -4226,30 +4301,21 @@
 
             exibirLoader(true, "Montando arquivo JSON e salvando questões com imagens...");
 
-            fetch((window.API_BASE_URL || '') + '/api/exportar-json', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    questoes: questoes
-                })
-            })
-            .then(res => res.json())
-            .then(data => {
+            try {
+                const jsonStr = JSON.stringify(questoes, null, 2);
+                const blob = new Blob([jsonStr], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'questoes_exportadas.json';
+                a.click();
+                URL.revokeObjectURL(url);
                 exibirLoader(false);
-                if (data.erro) {
-                    mostrarAlerta(data.erro, "error");
-                } else {
-                    mostrarAlerta(data.mensagem, "success");
-                    // Baixa o arquivo gerado via navegador
-                    window.location.href = '/api/baixar-json';
-                }
-            })
-            .catch(err => {
+                mostrarAlerta("JSON exportado com sucesso!", "success");
+            } catch(err) {
                 exibirLoader(false);
-                mostrarAlerta("Erro de rede ao exportar arquivo JSON.", "error");
-            });
+                mostrarAlerta("Erro ao exportar JSON: " + err.message, "error");
+            }
         }
 
         function salvarNoBancoWordPress() {
@@ -4365,16 +4431,17 @@
                     const model = document.getElementById('ollama-model').value.trim();
                     if (!model) return;
                     
-                    fetch((window.API_BASE_URL || '') + '/api/aquecer-ia', {
+                    fetch('/wp-admin/admin-ajax.php', {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            provedor: provider,
-                            model: model,
-                            endpoint: endpoint
-                        })
+                        body: (function() {
+                            const fd = new FormData();
+                            fd.append('action', 'extrator_aquecer_ia');
+                            fd.append('nonce', window.WP_REST_NONCE || '');
+                            fd.append('provedor', provider);
+                            fd.append('model', model);
+                            fd.append('endpoint', endpoint);
+                            return fd;
+                        })()
                     }).catch(err => console.error("Erro no warm-up da IA:", err));
                 }
             }, 1000); // 1 segundo de debounce
