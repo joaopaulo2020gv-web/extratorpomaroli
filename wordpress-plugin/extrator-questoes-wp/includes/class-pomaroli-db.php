@@ -212,8 +212,8 @@ class Pomaroli_DB {
     public function get_job($job_id, $user_id = null) {
         global $wpdb;
         $where = $wpdb->prepare("id = %d", $job_id);
-        if ($user_id !== null) {
-            $where .= $wpdb->prepare(" AND user_id = %d", $user_id);
+        if ($user_id !== null && !current_user_can('manage_options')) {
+            $where .= $wpdb->prepare(" AND (user_id = %d OR user_id = 0)", $user_id);
         }
         return $wpdb->get_row("SELECT * FROM {$this->table_jobs()} WHERE {$where}");
     }
@@ -294,9 +294,19 @@ class Pomaroli_DB {
     public function delete_job($job_id, $user_id = null) {
         global $wpdb;
         $where = $wpdb->prepare("id = %d", $job_id);
-        if ($user_id !== null) {
-            $where .= $wpdb->prepare(" AND user_id = %d", $user_id);
+        if ($user_id !== null && !current_user_can('manage_options')) {
+            $where .= $wpdb->prepare(" AND (user_id = %d OR user_id = 0)", $user_id);
         }
+
+        // Exclui questões vinculadas ao job
+        $table_questions = $this->table_questions();
+        $wpdb->query($wpdb->prepare("DELETE FROM {$table_questions} WHERE job_id = %d", $job_id));
+
+        // Exclui arquivos vinculados ao job
+        $table_files = $this->table_files();
+        $wpdb->query($wpdb->prepare("DELETE FROM {$table_files} WHERE job_id = %d", $job_id));
+
+        // Exclui o job
         $wpdb->query("DELETE FROM {$this->table_jobs()} WHERE {$where}");
         return $wpdb->rows_changed;
     }
