@@ -3,7 +3,7 @@
  * Plugin Name: Extrator de Questoes Pomaroli
  * Plugin URI: https://extrator.pomaroli.com.br
  * Description: Plugin oficial Extrator de Questoes Pomaroli para extracao automatizada de questoes de concursos em lote (PDFs multiplas) com autocorrecao via Google Gemini IA e integracao com o banco do WordPress. Inclui aplicativo visual 100% Tela Cheia com login integrado.
- * Version: 3.3.7
+ * Version: 3.3.8
  * Author: Equipe Pomaroli
  * Text Domain: extrator-questoes-wp
  */
@@ -318,9 +318,12 @@ class ExtratorQuestoesWP {
     }
 
     public function carregar_scripts_frontend() {
-        wp_enqueue_style('pomaroli-dashboard', plugins_url('assets/css/dashboard.css', __FILE__), array(), '3.3.4');
-        wp_enqueue_script('pomaroli-api', plugins_url('assets/js/api.js', __FILE__), array(), '3.3.4', true);
-        wp_enqueue_script('pomaroli-app', plugins_url('assets/js/app.js', __FILE__), array('pomaroli-api'), '3.3.4', true);
+        $plugin_data = get_file_data(__FILE__, array('Version' => 'Version'));
+        $ver = isset($plugin_data['Version']) ? $plugin_data['Version'] : '3.3.7';
+
+        wp_enqueue_style('pomaroli-dashboard', plugins_url('assets/css/dashboard.css', __FILE__), array(), $ver);
+        wp_enqueue_script('pomaroli-api', plugins_url('assets/js/api.js', __FILE__), array(), $ver, true);
+        wp_enqueue_script('pomaroli-app', plugins_url('assets/js/app.js', __FILE__), array('pomaroli-api'), $ver, true);
 
         $app_config = array(
             'restUrl'   => rest_url('pomaroli/v1/'),
@@ -330,8 +333,8 @@ class ExtratorQuestoesWP {
         );
         wp_localize_script('pomaroli-api', 'APP_CONFIG', $app_config);
 
-        wp_enqueue_style('extrator-frontend-css', plugins_url('frontend.css', __FILE__), array(), '3.3.4');
-        wp_enqueue_script('extrator-frontend-js', plugins_url('frontend.js', __FILE__), array('jquery'), '3.3.4', true);
+        wp_enqueue_style('extrator-frontend-css', plugins_url('frontend.css', __FILE__), array(), $ver);
+        wp_enqueue_script('extrator-frontend-js', plugins_url('frontend.js', __FILE__), array('jquery'), $ver, true);
     }
 
     // =========================================================================
