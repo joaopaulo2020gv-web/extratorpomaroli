@@ -3,7 +3,7 @@
  * Plugin Name: Extrator de Questoes Pomaroli
  * Plugin URI: https://extrator.pomaroli.com.br
  * Description: Plugin oficial Extrator de Questoes Pomaroli para extracao automatizada de questoes de concursos em lote (PDFs multiplas) com autocorrecao via Google Gemini IA e integracao com o banco do WordPress. Inclui aplicativo visual 100% Tela Cheia com login integrado.
- * Version: 3.3.9
+ * Version: 3.4.0
  * Author: Equipe Pomaroli
  * Text Domain: extrator-questoes-wp
  */
@@ -297,7 +297,7 @@ class ExtratorQuestoesWP {
         }
 
         $plugin_data = get_file_data(__FILE__, array('Version' => 'Version'));
-        $ver = isset($plugin_data['Version']) ? $plugin_data['Version'] : '3.3.9';
+        $ver = isset($plugin_data['Version']) ? $plugin_data['Version'] : '3.4.0';
 
         $app_config = array(
             'restUrl'   => rest_url('pomaroli/v1/'),
