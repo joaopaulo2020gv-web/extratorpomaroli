@@ -3,7 +3,7 @@
  * Plugin Name: Extrator de Questoes Pomaroli
  * Plugin URI: https://extrator.pomaroli.com.br
  * Description: Plugin oficial Extrator de Questoes Pomaroli para extracao automatizada de questoes de concursos em lote (PDFs multiplas) com autocorrecao via Google Gemini IA e integracao com o banco do WordPress. Inclui aplicativo visual 100% Tela Cheia com login integrado.
- * Version: 3.4.2
+ * Version: 3.4.3
  * Author: Equipe Pomaroli
  * Text Domain: extrator-questoes-wp
  */
@@ -297,7 +297,7 @@ class ExtratorQuestoesWP {
         }
 
         $plugin_data = get_file_data(__FILE__, array('Version' => 'Version'));
-        $ver = isset($plugin_data['Version']) ? $plugin_data['Version'] : '3.4.2';
+        $ver = isset($plugin_data['Version']) ? $plugin_data['Version'] : '3.4.3';
 
         $app_config = array(
             'restUrl'   => rest_url('pomaroli/v1/'),
@@ -1135,25 +1135,28 @@ class ExtratorQuestoesWP {
             </div>
 
             <?php
-            $worker_secret = class_exists('Pomaroli_Worker_Auth') ? Pomaroli_Worker_Auth::get_instance()->get_secret() : get_option('pomaroli_worker_secret', '');
+            $worker_secret = class_exists('Pomaroli_Worker_Auth') ? Pomaroli_Worker_Auth::get_instance()->get_secret() : get_option('pomaroli_worker_secret', 'PomaroliWorker_2026_X7k9P2m4');
+            $api_url = get_option('extrator_api_url', 'https://extractor.pomaroli.com.br');
             ?>
             <div class="extrator-card">
                 <h2>Configuracoes</h2>
                 <form id="form-config-extrator">
                     <div class="extrator-grid-2">
                         <div>
-                            <label>Chave da API do Google Gemini (para OCR/Revisao):</label>
-                            <input type="password" id="config-gemini-key" class="regular-text" value="<?php echo esc_attr($gemini_key); ?>" placeholder="AIzaSy...">
-                            <small>Obtenha sua chave gratuita no <a href="https://aistudio.google.com/" target="_blank">Google AI Studio</a>. Opcional: usada apenas para OCR e revisao IA.</small>
+                            <label>URL do Aplicativo Python no Servidor (Setup Python App):</label>
+                            <input type="text" id="config-api-url" class="regular-text" value="<?php echo esc_attr($api_url); ?>" placeholder="https://extractor.pomaroli.com.br">
+                            <small>Link do seu aplicativo Python configurado no cPanel (ex: <code>https://extractor.pomaroli.com.br</code>).</small>
                         </div>
                         <div>
                             <label>Chave Secreta do Python Worker (HMAC Secret):</label>
-                            <div style="display: flex; gap: 8px;">
-                                <input type="text" id="config-worker-secret" readonly class="regular-text" value="<?php echo esc_attr($worker_secret); ?>" style="background: #f8fafc; cursor: text; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12.5px; flex: 1;" onclick="this.select();">
-                                <button type="button" class="button" onclick="navigator.clipboard.writeText(document.getElementById('config-worker-secret').value); alert('Chave copiada com sucesso!');">Copiar</button>
-                            </div>
-                            <small>Copie esta chave para a variável <code>POMAROLI_WORKER_SECRET</code> no Render.</small>
+                            <input type="text" id="config-worker-secret" class="regular-text" value="<?php echo esc_attr($worker_secret); ?>" placeholder="PomaroliWorker_2026_X7k9P2m4" style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 13px;">
+                            <small>Deve ser idêntica à variável <code>POMAROLI_WORKER_SECRET</code> do seu cPanel.</small>
                         </div>
+                    </div>
+                    <div style="margin-top: 15px;">
+                        <label>Chave da API do Google Gemini (para OCR/Revisao):</label>
+                        <input type="password" id="config-gemini-key" class="regular-text" value="<?php echo esc_attr($gemini_key); ?>" placeholder="AIzaSy...">
+                        <small>Obtenha sua chave gratuita no <a href="https://aistudio.google.com/" target="_blank">Google AI Studio</a>. Opcional: usada apenas para OCR e revisao IA.</small>
                     </div>
                     <button type="submit" class="button button-secondary mt-15">Salvar Configuracoes</button>
                 </form>

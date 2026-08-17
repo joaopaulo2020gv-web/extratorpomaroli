@@ -281,6 +281,7 @@ jQuery(document).ready(function ($) {
     // Salvar Configurações (Gemini Key, etc.)
     $('#form-config-extrator').on('submit', function (e) {
         e.preventDefault();
+        const apiUrl = $('#config-api-url').val();
         const geminiKey = $('#config-gemini-key').val();
         const workerSecret = $('#config-worker-secret').val();
         const btn = $(this).find('button[type="submit"]');
@@ -293,6 +294,7 @@ jQuery(document).ready(function ($) {
             data: {
                 action: 'extrator_salvar_config',
                 nonce: (window.extratorWPConfig || {}).nonce || '',
+                api_url: apiUrl,
                 gemini_key: geminiKey,
                 worker_secret: workerSecret,
             },
