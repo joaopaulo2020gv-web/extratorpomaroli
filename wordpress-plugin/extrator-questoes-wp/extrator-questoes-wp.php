@@ -1134,6 +1134,9 @@ class ExtratorQuestoesWP {
                 </ul>
             </div>
 
+            <?php
+            $worker_secret = class_exists('Pomaroli_Worker_Auth') ? Pomaroli_Worker_Auth::get_instance()->get_secret() : get_option('pomaroli_worker_secret', '');
+            ?>
             <div class="extrator-card">
                 <h2>Configuracoes</h2>
                 <form id="form-config-extrator">
@@ -1142,6 +1145,11 @@ class ExtratorQuestoesWP {
                             <label>Chave da API do Google Gemini (para OCR/Revisao):</label>
                             <input type="password" id="config-gemini-key" class="regular-text" value="<?php echo esc_attr($gemini_key); ?>" placeholder="AIzaSy...">
                             <small>Obtenha sua chave gratuita no <a href="https://aistudio.google.com/" target="_blank">Google AI Studio</a>. Opcional: usada apenas para OCR e revisao IA.</small>
+                        </div>
+                        <div>
+                            <label>Chave Secreta do Python Worker (HMAC Secret):</label>
+                            <input type="text" readonly class="regular-text" value="<?php echo esc_attr($worker_secret); ?>" style="background: #f8fafc; cursor: text; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12.5px;" onclick="this.select();">
+                            <small>Copie este código para o campo <code>worker_secret</code> do seu arquivo <code>config.json</code> no cPanel.</small>
                         </div>
                     </div>
                     <button type="submit" class="button button-secondary mt-15">Salvar Configuracoes</button>
