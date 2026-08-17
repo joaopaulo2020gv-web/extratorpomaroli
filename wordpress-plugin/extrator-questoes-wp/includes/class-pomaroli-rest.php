@@ -227,6 +227,13 @@ class Pomaroli_REST {
             'callback'            => array($this, 'worker_get_files'),
             'permission_callback' => array($this, 'is_worker_authorized'),
         ));
+
+        // ---- WORKER: DOWNLOAD FILE (autenticado via HMAC) ----
+        register_rest_route(self::NAMESPACE, '/worker/download-file/(?P<id>\d+)', array(
+            'methods'             => 'GET',
+            'callback'            => array($this, 'worker_download_file'),
+            'permission_callback' => array($this, 'is_worker_authorized'),
+        ));
     }
 
     // =========================================================================
@@ -938,6 +945,28 @@ class Pomaroli_REST {
 
         $files = $this->db->get_files_by_job($job_id);
         return rest_ensure_response(array('files' => $files));
+    }
+
+    /**
+     * Faz download seguro do arquivo PDF via REST API (autenticado via HMAC).
+     */
+    public function worker_download_file($request) {
+        $file_id = intval($request['id']);
+        $file = $this->db->get_file($file_id);
+        if (!$file || !file_exists($file->file_path)) {
+            return new WP_Error('not_found', 'Arquivo não encontrado no servidor.', array('status' => 404));
+        }
+
+        $content = file_get_contents($file->file_path);
+        if ($content === false) {
+            return new WP_Error('read_failed', 'Falha ao ler arquivo.', array('status' => 500));
+        }
+
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: attachment; filename="' . basename($file->filename) . '"');
+        header('Content-Length: ' . strlen($content));
+        echo $content;
+        exit;
     }
 
     /**
