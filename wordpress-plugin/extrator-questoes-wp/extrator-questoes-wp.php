@@ -1148,8 +1148,11 @@ class ExtratorQuestoesWP {
                         </div>
                         <div>
                             <label>Chave Secreta do Python Worker (HMAC Secret):</label>
-                            <input type="text" readonly class="regular-text" value="<?php echo esc_attr($worker_secret); ?>" style="background: #f8fafc; cursor: text; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12.5px;" onclick="this.select();">
-                            <small>Copie este código para o campo <code>worker_secret</code> do seu arquivo <code>config.json</code> no cPanel.</small>
+                            <div style="display: flex; gap: 8px;">
+                                <input type="text" id="config-worker-secret" readonly class="regular-text" value="<?php echo esc_attr($worker_secret); ?>" style="background: #f8fafc; cursor: text; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12.5px; flex: 1;" onclick="this.select();">
+                                <button type="button" class="button" onclick="navigator.clipboard.writeText(document.getElementById('config-worker-secret').value); alert('Chave copiada com sucesso!');">Copiar</button>
+                            </div>
+                            <small>Copie esta chave para a variável <code>POMAROLI_WORKER_SECRET</code> no Render.</small>
                         </div>
                     </div>
                     <button type="submit" class="button button-secondary mt-15">Salvar Configuracoes</button>

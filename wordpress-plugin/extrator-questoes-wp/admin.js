@@ -277,4 +277,37 @@ jQuery(document).ready(function ($) {
             }
         });
     });
+
+    // Salvar Configurações (Gemini Key, etc.)
+    $('#form-config-extrator').on('submit', function (e) {
+        e.preventDefault();
+        const geminiKey = $('#config-gemini-key').val();
+        const workerSecret = $('#config-worker-secret').val();
+        const btn = $(this).find('button[type="submit"]');
+
+        btn.prop('disabled', true).text('💾 Salvando...');
+
+        $.ajax({
+            url: (window.extratorWPConfig || {}).ajaxurl || '/wp-admin/admin-ajax.php',
+            type: 'POST',
+            data: {
+                action: 'extrator_salvar_config',
+                nonce: (window.extratorWPConfig || {}).nonce || '',
+                gemini_key: geminiKey,
+                worker_secret: workerSecret,
+            },
+            success: function (response) {
+                btn.prop('disabled', false).text('Salvar Configurações');
+                if (response.success) {
+                    alert('✅ ' + (response.data.message || 'Configurações salvas com sucesso!'));
+                } else {
+                    alert('❌ ' + ((response.data && response.data.message) || 'Erro ao salvar configurações.'));
+                }
+            },
+            error: function () {
+                btn.prop('disabled', false).text('Salvar Configurações');
+                alert('❌ Erro na comunicação com o servidor.');
+            }
+        });
+    });
 });
