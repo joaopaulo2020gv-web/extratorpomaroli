@@ -1365,13 +1365,14 @@ def parsear_questoes_local(texto_completo):
         linha_lower = linha_sem_html.lower()
         linha_clean = linha_lower.strip()
         
-        # Se chegamos à seção de redação / prova discursiva, encerramos a extração de questões de múltipla escolha!
-        if (linha_clean in ["redação", "redacao", "prova de redação", "prova de redacao", "folha de redação", "folha de redacao", "prova discursiva"] or
+        # Se chegamos à seção de redação / prova discursiva (somente após já termos extraído questões), encerramos a extração!
+        if len(questoes) >= 5 and (
+            linha_clean in ["redação", "redacao", "prova de redação", "prova de redacao", "folha de redação", "folha de redacao"] or
             "instruções para a redação" in linha_lower or "instrucoes para a redacao" in linha_lower or
-            "prova discursiva" in linha_lower or "proposta de redação" in linha_lower or "proposta de redacao" in linha_lower or
-            "a redação para os cargos" in linha_lower or "a redacao para os cargos" in linha_lower or
-            "critérios de avaliação" in linha_lower or "criterios de avaliacao" in linha_lower):
-            print("[*] Seção de Redação/Discursiva detectada. Encerrando o parsing de questões.")
+            "proposta de redação" in linha_lower or "proposta de redacao" in linha_lower or
+            "a redação para os cargos" in linha_lower or "a redacao para os cargos" in linha_lower
+        ):
+            print("[*] Seção de Redação/Discursiva final detectada. Encerrando o parsing de questões.")
             break
             
         # Ignora linhas avulsas muito curtas (ex: letras ou números perdidos de corte de coluna),

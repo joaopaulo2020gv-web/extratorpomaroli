@@ -425,6 +425,14 @@ def processar_job(job, files):
                 'error_message': 'Erro durante processamento do bloco.',
             })
             arquivos_com_erro += 1
+        elif questoes_arquivo == 0:
+            msg_zero = "Nenhuma questão detectada neste PDF. Verifique se o documento é digitalizado (imagem) necessitando de OCR por IA ou se possui formatação não reconhecida."
+            wp_update_job(job_id, {
+                'file_id': file_id,
+                'file_status': 'erro',
+                'error_message': msg_zero,
+            })
+            arquivos_com_erro += 1
         else:
             wp_update_job(job_id, {
                 'file_id': file_id,
@@ -509,14 +517,21 @@ def run_worker():
 
         # Finalizar job
         if all_done:
+            sucesso = (proc_erro == 0 and total_questoes > 0)
+            msg_erro_final = None
+            if total_questoes == 0 and proc_erro > 0:
+                msg_erro_final = f"Nenhuma questão detectada em {proc_erro} arquivo(s)."
+            elif proc_erro > 0:
+                msg_erro_final = f"{proc_erro} arquivo(s) com falha durante o processamento."
+
             wp_complete_job(
                 job_id,
-                success=(proc_erro == 0),
+                success=sucesso,
                 total_questions=total_questoes,
                 processed_files=len(files),
-                error_message=f'{proc_erro} arquivo(s) com erro.' if proc_erro > 0 else None
+                error_message=msg_erro_final
             )
-            status = 'completed'
+            status = 'completed' if sucesso else 'failed'
         else:
             status = 'partial'
 

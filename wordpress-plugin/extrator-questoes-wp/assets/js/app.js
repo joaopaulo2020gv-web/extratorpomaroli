@@ -59,25 +59,36 @@ const PomaroliApp = (() => {
         return dt.toLocaleDateString('pt-BR') + ' ' + dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     }
 
-    function statusBadge(status) {
+    function statusBadge(status, errorMsg = '') {
         const map = {
-            aguardando:  { cls: 'gray',    icon: 'clock',          label: 'Aguardando' },
-            na_fila:     { cls: 'gray',    icon: 'folder-open',    label: 'Na Fila' },
-            enviando:    { cls: 'blue',    icon: 'cloud-arrow-up', label: 'Enviando' },
-            processando: { cls: 'blue',    icon: 'spinner fa-spin', label: 'Processando' },
-            extraindo:   { cls: 'blue',    icon: 'magnifying-glass', label: 'Extraindo' },
-            concluido:   { cls: 'green',   icon: 'check-circle',   label: 'Concluído' },
-            erro:        { cls: 'red',     icon: 'exclamation-triangle', label: 'Erro' },
-            cancelado:   { cls: 'amber',   icon: 'ban',            label: 'Cancelado' },
-            extraida:    { cls: 'blue',    icon: 'file-lines',     label: 'Extraída' },
-            revisada:    { cls: 'green',   icon: 'check',          label: 'Revisada' },
-            publicada:   { cls: 'purple',  icon: 'globe',          label: 'Publicada' },
-            rejeitada:   { cls: 'red',     icon: 'xmark',          label: 'Rejeitada' },
-            pendente:    { cls: 'amber',   icon: 'hourglass-half', label: 'Pendente' },
-            aprovada:    { cls: 'green',   icon: 'thumbs-up',      label: 'Aprovada' },
+            queued:      { cls: 'amber',   icon: 'clock',               label: 'Na Fila' },
+            na_fila:     { cls: 'amber',   icon: 'clock',               label: 'Na Fila' },
+            aguardando:  { cls: 'amber',   icon: 'clock',               label: 'Aguardando' },
+            enviando:    { cls: 'blue',    icon: 'cloud-arrow-up',      label: 'Enviando' },
+            processing:  { cls: 'blue',    icon: 'spinner fa-spin',     label: 'Processando' },
+            processando: { cls: 'blue',    icon: 'spinner fa-spin',     label: 'Processando' },
+            extraindo:   { cls: 'blue',    icon: 'magnifying-glass',    label: 'Extraindo' },
+            completed:   { cls: 'green',   icon: 'check-circle',        label: 'Concluído' },
+            concluido:   { cls: 'green',   icon: 'check-circle',        label: 'Concluído' },
+            failed:      { cls: 'red',     icon: 'triangle-exclamation', label: 'Erro' },
+            erro:        { cls: 'red',     icon: 'triangle-exclamation', label: 'Erro' },
+            error:       { cls: 'red',     icon: 'triangle-exclamation', label: 'Erro' },
+            cancelled:   { cls: 'gray',    icon: 'ban',                 label: 'Cancelado' },
+            cancelado:   { cls: 'gray',    icon: 'ban',                 label: 'Cancelado' },
+            extraida:    { cls: 'blue',    icon: 'file-lines',          label: 'Extraída' },
+            revisada:    { cls: 'green',   icon: 'check',               label: 'Revisada' },
+            publicada:   { cls: 'purple',  icon: 'globe',               label: 'Publicada' },
+            rejeitada:   { cls: 'red',     icon: 'xmark',               label: 'Rejeitada' },
+            pendente:    { cls: 'amber',   icon: 'hourglass-half',      label: 'Pendente' },
+            aprovada:    { cls: 'green',   icon: 'thumbs-up',           label: 'Aprovada' },
         };
-        const s = map[status] || { cls: 'gray', icon: 'question', label: status };
-        return `<span class="badge badge-${s.cls}"><i class="fa-solid fa-${s.icon}"></i> ${s.label}</span>`;
+        const s = map[status] || { cls: 'gray', icon: 'circle-question', label: status || 'Desconhecido' };
+        let html = `<span class="badge badge-${s.cls}"><i class="fa-solid fa-${s.icon}"></i> ${s.label}</span>`;
+        if (errorMsg && (s.cls === 'red' || status === 'failed' || status === 'erro')) {
+            const cleanErr = String(errorMsg).replace(/"/g, '&quot;');
+            html += ` <button type="button" class="btn btn-ghost btn-sm text-red" style="padding:2px 6px; font-size:11px;" onclick="alert('Detalhes do Erro:\\n\\n' + this.getAttribute('data-err'))" data-err="${cleanErr}" title="Ver detalhes do erro"><i class="fa-solid fa-circle-exclamation"></i> Ver Erro</button>`;
+        }
+        return html;
     }
 
     function progressHTML(pct) {
@@ -172,62 +183,126 @@ const PomaroliApp = (() => {
         container.innerHTML = '';
         container.appendChild(t.content.cloneNode(true));
 
-        // Carrega stats
-        try {
-            const stats = await PomaroliAPI.getStats();
-            $('#stat-active').textContent = stats.active_jobs || 0;
-            $('#stat-queued').textContent = stats.queued_jobs || 0;
-            $('#stat-questions').textContent = stats.total_questions || 0;
+        async function loadDashboardData() {
+            let hasActiveJobs = false;
 
-            const reviewPending = stats.questions?.revisao_pendente || 0;
-            $('#stat-pending-review').textContent = reviewPending;
-        } catch (e) {
-            console.error('Erro ao carregar stats:', e);
-        }
+            // Carrega stats
+            try {
+                const stats = await PomaroliAPI.getStats();
+                const activeEl = $('#stat-active');
+                const queuedEl = $('#stat-queued');
+                const questionsEl = $('#stat-questions');
+                const reviewEl = $('#stat-pending-review');
 
-        // Carrega jobs recentes
-        try {
-            const data = await PomaroliAPI.listJobs({ per_page: 8 });
-            const tbody = $('#recent-jobs-body');
-            if (!data.items || data.items.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" class="text-muted text-center">Nenhum processamento encontrado. Clique em "Novo Upload" para começar.</td></tr>';
-                return;
+                if (activeEl) activeEl.textContent = stats.active_jobs || 0;
+                if (queuedEl) queuedEl.textContent = stats.queued_jobs || 0;
+                if (questionsEl) questionsEl.textContent = stats.total_questions || 0;
+
+                const reviewPending = stats.questions?.revisao_pendente || 0;
+                if (reviewEl) reviewEl.textContent = reviewPending;
+
+                if ((stats.active_jobs || 0) > 0 || (stats.queued_jobs || 0) > 0) {
+                    hasActiveJobs = true;
+                }
+            } catch (e) {
+                console.error('Erro ao carregar stats:', e);
             }
-            tbody.innerHTML = data.items.map(j => `
-                <tr>
-                    <td><strong>#${j.id}</strong></td>
-                    <td>${statusBadge(j.status)}</td>
-                    <td>${j.processed_files}/${j.total_files}</td>
-                    <td>${j.total_questions}</td>
-                    <td>${progressHTML(parseInt(j.progress) || 0)}</td>
-                    <td class="text-sm text-muted">${formatDate(j.created_at)}</td>
-                    <td><a href="#/jobs/${j.id}" class="btn btn-ghost btn-sm"><i class="fa-solid fa-eye"></i></a></td>
-                </tr>
-            `).join('');
-        } catch (e) {
-            console.error('Erro ao carregar jobs:', e);
+
+            // Carrega jobs recentes
+            try {
+                const data = await PomaroliAPI.listJobs({ per_page: 8 });
+                const tbody = $('#recent-jobs-body');
+                if (!tbody) return;
+
+                if (!data.items || data.items.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="text-muted text-center">Nenhum processamento encontrado. Clique em "Novo Upload" para começar.</td></tr>';
+                } else {
+                    tbody.innerHTML = data.items.map(j => {
+                        const isFailed = j.status === 'failed' || j.status === 'erro' || j.status === 'error';
+                        const isProcessing = ['queued', 'na_fila', 'processing', 'processando', 'enviando', 'extraindo'].includes(j.status);
+                        if (isProcessing) hasActiveJobs = true;
+
+                        return `
+                            <tr>
+                                <td><strong>#${j.id}</strong></td>
+                                <td>${statusBadge(j.status, j.error_message)}</td>
+                                <td>${j.processed_files || 0}/${j.total_files || 0}</td>
+                                <td><strong>${j.total_questions || 0}</strong></td>
+                                <td>${progressHTML(parseInt(j.progress) || 0)}</td>
+                                <td class="text-sm text-muted">${formatDate(j.created_at)}</td>
+                                <td style="white-space:nowrap;">
+                                    <a href="#/jobs/${j.id}" class="btn btn-ghost btn-sm" title="Ver detalhes"><i class="fa-solid fa-eye"></i></a>
+                                    ${isFailed ? `<button type="button" class="btn btn-ghost btn-sm text-amber btn-dash-retry" data-id="${j.id}" title="Tentar Novamente"><i class="fa-solid fa-rotate-right"></i></button>` : ''}
+                                </td>
+                            </tr>
+                        `;
+                    }).join('');
+
+                    // Handler para retry rápido no dashboard
+                    $$('.btn-dash-retry', tbody).forEach(btn => {
+                        btn.addEventListener('click', async (e) => {
+                            e.preventDefault();
+                            const jId = btn.dataset.id;
+                            try {
+                                btn.disabled = true;
+                                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+                                await PomaroliAPI.retryJob(jId);
+                                toast(`Processamento #${jId} reenfileirado!`, 'success');
+                                loadDashboardData();
+                            } catch (err) {
+                                toast('Erro ao reenfileirar: ' + err.message, 'error');
+                                btn.disabled = false;
+                                btn.innerHTML = '<i class="fa-solid fa-rotate-right"></i>';
+                            }
+                        });
+                    });
+                }
+            } catch (e) {
+                console.error('Erro ao carregar jobs:', e);
+            }
+
+            // Carrega atividade
+            try {
+                const logs = await PomaroliAPI.getLogs({ per_page: 10 });
+                const logContainer = $('#activity-log');
+                if (logContainer) {
+                    if (!logs.items || logs.items.length === 0) {
+                        logContainer.innerHTML = '<div class="text-muted text-center">Nenhuma atividade registrada.</div>';
+                    } else {
+                        logContainer.innerHTML = logs.items.map(l => `
+                            <div class="activity-item">
+                                <div class="activity-dot ${l.level === 'error' ? 'error' : l.level === 'warning' ? 'warning' : 'info'}"></div>
+                                <div>
+                                    <div>${l.message}</div>
+                                    <div class="activity-time">${formatDate(l.created_at)}</div>
+                                </div>
+                            </div>
+                        `).join('');
+                    }
+                }
+            } catch (e) {
+                console.error('Erro ao carregar logs:', e);
+            }
+
+            // Auto-polling se houver jobs ativos
+            if (hasActiveJobs && currentPage === 'dashboard') {
+                if (!pollTimers['dashboard']) {
+                    pollTimers['dashboard'] = setInterval(() => {
+                        if (currentPage !== 'dashboard') {
+                            clearInterval(pollTimers['dashboard']);
+                            delete pollTimers['dashboard'];
+                            return;
+                        }
+                        loadDashboardData();
+                    }, 4000);
+                }
+            } else if (!hasActiveJobs && pollTimers['dashboard']) {
+                clearInterval(pollTimers['dashboard']);
+                delete pollTimers['dashboard'];
+            }
         }
 
-        // Carrega atividade
-        try {
-            const logs = await PomaroliAPI.getLogs({ per_page: 10 });
-            const logContainer = $('#activity-log');
-            if (!logs.items || logs.items.length === 0) {
-                logContainer.innerHTML = '<div class="text-muted text-center">Nenhuma atividade registrada.</div>';
-                return;
-            }
-            logContainer.innerHTML = logs.items.map(l => `
-                <div class="activity-item">
-                    <div class="activity-dot ${l.level === 'error' ? 'error' : l.level === 'warning' ? 'warning' : 'info'}"></div>
-                    <div>
-                        <div>${l.message}</div>
-                        <div class="activity-time">${formatDate(l.created_at)}</div>
-                    </div>
-                </div>
-            `).join('');
-        } catch (e) {
-            console.error('Erro ao carregar logs:', e);
-        }
+        await loadDashboardData();
     }
 
     // =========================================================================
@@ -255,7 +330,7 @@ const PomaroliApp = (() => {
                     <tr>
                         <td><strong>#${j.id}</strong></td>
                         <td class="text-sm truncate" title="${j.batch_id_externo || ''}">${j.batch_id_externo || '--'}</td>
-                        <td>${statusBadge(j.status)}</td>
+                        <td>${statusBadge(j.status, j.error_message)}</td>
                         <td>${j.processed_files || 0}/${j.total_files || 0}</td>
                         <td>${j.total_questions || 0}</td>
                         <td>${progressHTML(parseInt(j.progress) || 0)}</td>
@@ -324,14 +399,28 @@ const PomaroliApp = (() => {
             $('#jd-questions').textContent = job.total_questions || 0;
             $('#jd-progress').textContent = `${parseInt(job.progress) || 0}%`;
 
-            // Mostra/esconde botões de ação
+            // Mostra/esconde botões de ação e alertas de erro
             const status = job.status;
-            if (status === 'erro') {
-                $('#jd-btn-retry').style.display = '';
-                $('#jd-btn-cancel').style.display = 'none';
-            } else if (['aguardando', 'na_fila', 'processando', 'enviando', 'extraindo'].includes(status)) {
-                $('#jd-btn-cancel').style.display = '';
-                $('#jd-btn-retry').style.display = 'none';
+            const isFailed = status === 'failed' || status === 'erro' || status === 'error';
+
+            if (isFailed || job.error_message) {
+                if ($('#jd-btn-retry')) $('#jd-btn-retry').style.display = '';
+                if ($('#jd-btn-cancel')) $('#jd-btn-cancel').style.display = 'none';
+
+                const errBox = document.createElement('div');
+                errBox.style = 'background: rgba(239, 68, 68, 0.15); border: 1px solid #ef4444; color: #fca5a5; padding: 14px 18px; border-radius: 8px; margin-bottom: 20px; display: flex; align-items: flex-start; gap: 12px;';
+                errBox.innerHTML = `
+                    <i class="fa-solid fa-triangle-exclamation" style="color: #ef4444; font-size: 20px; margin-top: 2px;"></i>
+                    <div style="flex: 1;">
+                        <strong style="color: #f87171; font-size: 14px; display: block; margin-bottom: 4px;">Falha no Processamento:</strong>
+                        <span style="font-size: 13px; color: #cbd5e1;">${job.error_message || 'Ocorreu um erro durante a execução do processamento deste arquivo.'}</span>
+                    </div>
+                `;
+                const detailGrid = container.querySelector('.job-detail-grid') || container.firstElementChild;
+                if (detailGrid) detailGrid.parentElement.insertBefore(errBox, detailGrid);
+            } else if (['queued', 'na_fila', 'aguardando', 'processing', 'processando', 'enviando', 'extraindo'].includes(status)) {
+                if ($('#jd-btn-cancel')) $('#jd-btn-cancel').style.display = '';
+                if ($('#jd-btn-retry')) $('#jd-btn-retry').style.display = 'none';
             }
 
             // Retry
