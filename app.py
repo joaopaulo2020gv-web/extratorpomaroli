@@ -296,9 +296,27 @@ def worker_processar_lotes():
         except Exception as e:
             print(f"[-] Erro inesperado no worker de lotes: {e}")
 
-# Inicia worker thread em segundo plano
+# Inicia worker thread em segundo plano para lotes diretos
 THREAD_WORKER_LOTES = threading.Thread(target=worker_processar_lotes, daemon=True)
 THREAD_WORKER_LOTES.start()
+
+def poller_wordpress_jobs():
+    """Thread em segundo plano que monitora continuamente o WordPress na nuvem (Render)."""
+    time.sleep(5)
+    while True:
+        try:
+            wp_site_url = os.environ.get('WP_SITE_URL', '').rstrip('/')
+            if wp_site_url:
+                from worker import run_worker
+                res, code = run_worker()
+                if res.get('status') in ('completed', 'partial'):
+                    print(f"[POLLER CLOUD] Job processado com sucesso: {res.get('message')}")
+        except Exception as e_poll:
+            pass
+        time.sleep(10)
+
+THREAD_WP_POLLER = threading.Thread(target=poller_wordpress_jobs, daemon=True)
+THREAD_WP_POLLER.start()
 
 
 # Progresso em tempo real para o frontend (thread-safe via GIL do Python)
