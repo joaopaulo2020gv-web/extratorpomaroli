@@ -1128,7 +1128,7 @@ class Pomaroli_REST {
         $queue = Pomaroli_Queue::get_instance();
         $queue->enqueue($job_id);
 
-        $this->db->log('info', "Upload local: {$files_salvos} arquivos, job #{$job_id} criado e enfileirado", $user_id, $job_id);
+        $this->db->log('info', "Upload de Prova em PDF: {$files_salvos} arquivo(s), job #{$job_id} criado e enfileirado", $user_id, $job_id);
 
         // Buscar job atualizado
         $job = $this->db->get_job($job_id);
