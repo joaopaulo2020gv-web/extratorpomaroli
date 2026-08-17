@@ -1,17 +1,16 @@
 """
-worker.py — Worker de processamento de PDFs para Turbo Cloud (cPanel).
+worker.py — Python Worker para processamento de PDFs via cPanel Cron.
 
-Execução pontual: cPanel Cron chama /worker/run periodicamente.
+Execução pontual: cPanel Cron chama `python worker.py` periodicamente.
 Cada execução:
-  1. Verifica lock
-  2. Busca próximo job queued no WordPress
-  3. Processa UM BLOCO de páginas (ex: 20 páginas)
+  1. Verifica lock (impede concorrência)
+  2. Busca próximo job queued no WordPress via REST API HMAC
+  3. Processa UM BLOCO de páginas (default: 20)
   4. Salva progresso + questões no WordPress
-  5. Libera lock
-  6. Encerra
+  5. Libera lock e encerra
 
-NÃO depende de Render, fila em memória ou disco persistente do servidor.
 O WordPress é a fonte oficial de estado.
+NÃO depende de Render, fila em memória ou disco persistente.
 """
 
 import os
@@ -20,13 +19,16 @@ import json
 import time
 import hmac
 import hashlib
-import fcntl
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
 import traceback
 
 import requests
 
-# Adiciona o diretório atual ao path para importar extrator.py
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+# Adiciona o diretório atual ao path para importar extrator.py e qualidade.py
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import extrator
 from qualidade import validar_questoes
 
@@ -34,76 +36,81 @@ from qualidade import validar_questoes
 # CONFIGURAÇÃO
 # =============================================================================
 
-WORKER_TOKEN = os.environ.get('POMAROLI_WORKER_TOKEN', '')
-POMAROLI_WORKER_SECRET = os.environ.get('POMAROLI_WORKER_SECRET', '')
-WP_SITE_URL = os.environ.get('WP_SITE_URL', '').rstrip('/')
+def load_config():
+    """Carrega config de variáveis de ambiente ou config.json."""
+    config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.json')
+    config = {}
+    if os.path.exists(config_path):
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = json.load(f)
 
-BLOC_SIZE = 20  # Páginas por bloco de processamento
+    return {
+        'WP_SITE_URL': os.environ.get('WP_SITE_URL', config.get('wordpress_url', '')).rstrip('/'),
+        'WORKER_SECRET': os.environ.get('POMAROLI_WORKER_SECRET', config.get('worker_secret', '')),
+        'GEMINI_API_KEY': os.environ.get('GEMINI_API_KEY', config.get('gemini_api_key', '')),
+        'BLOCK_SIZE': int(os.environ.get('BLOCK_SIZE', config.get('block_size', 20))),
+    }
+
+CFG = load_config()
+WP_SITE_URL = CFG['WP_SITE_URL']
+WORKER_SECRET = CFG['WORKER_SECRET']
+BLOCK_SIZE = CFG['BLOCK_SIZE']
+
 LOCK_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.worker.lock')
 
 # =============================================================================
 # HMAC SIGNING
 # =============================================================================
 
-def sign_hmac_wp(payload_str):
-    """Assina payload com HMAC-SHA256 para autenticação com WordPress."""
+def sign_request(method, endpoint, body_str=''):
+    """Gera headers HMAC-SHA256 para autenticação com WordPress."""
     timestamp = str(int(time.time()))
-    if not POMAROLI_WORKER_SECRET:
-        return {
-            'X-Pomaroli-Hmac': '',
-            'X-Pomaroli-Timestamp': timestamp,
-            'Content-Type': 'application/json',
-            'User-Agent': 'ExtratorPomaroli/3.2 Worker',
-        }
-    message = f"{timestamp}.{payload_str}"
-    h = hmac.new(
-        POMAROLI_WORKER_SECRET.encode('utf-8'),
+    message = f"{timestamp}.{method.upper()}.{endpoint}.{body_str}"
+    signature = hmac.new(
+        WORKER_SECRET.encode('utf-8'),
         message.encode('utf-8'),
         hashlib.sha256
     ).hexdigest()
     return {
-        'X-Pomaroli-Hmac': h,
+        'X-Pomaroli-Hmac': signature,
         'X-Pomaroli-Timestamp': timestamp,
         'Content-Type': 'application/json',
-        'User-Agent': 'ExtratorPomaroli/3.2 Worker',
+        'User-Agent': 'PomaroliWorker/3.2',
     }
 
 
 def wp_request(method, endpoint, data=None, timeout=60):
     """Faz request autenticado ao WordPress REST API."""
     url = f"{WP_SITE_URL}/wp-json/pomaroli/v1/{endpoint}"
-    headers = {'Content-Type': 'application/json', 'User-Agent': 'ExtratorPomaroli/3.2 Worker'}
-    payload_str = json.dumps(data) if data else '{}'
-    hmac_headers = sign_hmac_wp(payload_str)
-    headers.update(hmac_headers)
+    body_str = json.dumps(data) if data else ''
+    headers = sign_request(method, endpoint, body_str)
 
     if method == 'GET':
         res = requests.get(url, headers=headers, timeout=timeout)
     elif method == 'POST':
-        res = requests.post(url, data=payload_str, headers=headers, timeout=timeout)
+        res = requests.post(url, data=body_str, headers=headers, timeout=timeout)
     elif method == 'PUT':
-        res = requests.put(url, data=payload_str, headers=headers, timeout=timeout)
+        res = requests.put(url, data=body_str, headers=headers, timeout=timeout)
     else:
         raise ValueError(f"Method não suportado: {method}")
 
     return res
 
-
 # =============================================================================
-# LOCK
+# LOCK (fcntl — Linux/cPanel)
 # =============================================================================
 
 class WorkerLock:
-    """Lock baseado em arquivo para impedir concorrência."""
+    """Lock baseado em arquivo para impedir execuções concorrentes."""
 
     def __init__(self):
         self._fd = None
 
     def adquirir(self):
-        """Tenta adquirir o lock. Retorna True se conseguiu."""
         try:
             self._fd = open(LOCK_FILE, 'w')
-            fcntl.flock(self._fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            if fcntl:
+                fcntl.flock(self._fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
             self._fd.write(str(os.getpid()))
             self._fd.flush()
             return True
@@ -114,10 +121,10 @@ class WorkerLock:
             return False
 
     def liberar(self):
-        """Libera o lock."""
         if self._fd:
             try:
-                fcntl.flock(self._fd, fcntl.LOCK_UN)
+                if fcntl:
+                    fcntl.flock(self._fd, fcntl.LOCK_UN)
                 self._fd.close()
             except Exception:
                 pass
@@ -128,13 +135,12 @@ class WorkerLock:
         except Exception:
             pass
 
-
 # =============================================================================
-# WORDPRESS API
+# WORDPRESS API HELPERS
 # =============================================================================
 
 def wp_get_next_job():
-    """Busca o próximo job com status queued no WordPress."""
+    """Busca o próximo job com status queued."""
     res = wp_request('GET', 'worker/next-job')
     if res.status_code == 200:
         data = res.json()
@@ -144,13 +150,13 @@ def wp_get_next_job():
 
 
 def wp_claim_job(job_id):
-    """Marca um job como processing no WordPress."""
+    """Marca um job como processing."""
     res = wp_request('POST', 'worker/claim-job', {'job_id': job_id})
     return res.status_code == 200
 
 
 def wp_update_job(job_id, data):
-    """Atualiza dados de um job no WordPress."""
+    """Atualiza dados de um job."""
     data['job_id'] = job_id
     res = wp_request('POST', 'worker/update', data)
     return res.status_code == 200
@@ -187,19 +193,18 @@ def wp_complete_job(job_id, success=True, total_questions=0, processed_files=0, 
 
 
 def wp_get_job_files(job_id):
-    """Busca os arquivos de um job no WordPress."""
+    """Busca os arquivos de um job."""
     res = wp_request('GET', f'jobs/{job_id}/files')
     if res.status_code == 200:
         return res.json()
     return []
 
-
 # =============================================================================
-# EXTRAÇÃO EM BLOCOS
+# EXTRAÇÃO EM BLOCOS (usa extrator.py original)
 # =============================================================================
 
 def extrair_bloco_texto(caminho_pdf, bloco_inicio, bloco_fim):
-    """Extrai texto de um bloco específico de páginas do PDF."""
+    """Extrai texto de um bloco específico de páginas do PDF usando pdfplumber."""
     import pdfplumber
 
     texto_bloco = []
@@ -218,9 +223,8 @@ def extrair_bloco_texto(caminho_pdf, bloco_inicio, bloco_fim):
     return '\n\n'.join(texto_bloco)
 
 
-def extrair_bloco_com_ocr(caminho_pdf, bloco_inicio, bloco_fim, ocr_provedor, ocr_api_key, ocr_model, ocr_endpoint):
-    """Extrai texto de um bloco usando OCR (para PDFs escaneados)."""
-    import pdfplumber
+def extrair_bloco_com_ocr(caminho_pdf, bloco_inicio, bloco_fim, api_key, model):
+    """Extrai texto de um bloco usando OCR via Gemini Vision."""
     import fitz  # PyMuPDF
 
     texto_bloco = []
@@ -233,7 +237,6 @@ def extrair_bloco_com_ocr(caminho_pdf, bloco_inicio, bloco_fim, ocr_provedor, oc
             pix = page.get_pixmap(dpi=200)
             img_bytes = pix.tobytes("png")
 
-            # Salvar temporário e usar OCR
             import tempfile
             with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
                 tmp.write(img_bytes)
@@ -241,16 +244,17 @@ def extrair_bloco_com_ocr(caminho_pdf, bloco_inicio, bloco_fim, ocr_provedor, oc
 
             try:
                 texto = extrator.extrair_texto_por_ocr(
-                    tmp_path,  # Usa imagem como PDF-like input
-                    provedor=ocr_provedor,
-                    api_key=ocr_api_key,
-                    model=ocr_model,
-                    endpoint=ocr_endpoint
+                    tmp_path,
+                    provedor='gemini',
+                    api_key=api_key,
+                    model=model or 'gemini-2.0-flash',
+                    endpoint=None
                 )
                 if texto:
                     texto_bloco.append(texto)
             finally:
-                os.remove(tmp_path)
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
 
         doc.close()
     except Exception as e:
@@ -269,7 +273,6 @@ def contar_paginas_pdf(caminho_pdf):
     except Exception:
         return 0
 
-
 # =============================================================================
 # PROCESSAMENTO DE JOB
 # =============================================================================
@@ -277,13 +280,12 @@ def contar_paginas_pdf(caminho_pdf):
 def processar_job(job, files):
     """
     Processa UM job: itera sobre seus arquivos, processando cada um em blocos.
-    Retorna True se o job foi concluído, False se há mais trabalho.
+    Retorna (all_done, total_questoes, arquivos_ok, arquivos_erro).
     """
     job_id = job['id']
     use_ocr = bool(job.get('use_ocr', 0))
-    ocr_provedor = job.get('ai_provider', 'gemini') if use_ocr else None
-    ocr_api_key = os.environ.get('GEMINI_API_KEY', '')
-    ocr_model = job.get('ai_model', 'gemini-2.5-flash') if use_ocr else None
+    api_key = CFG['GEMINI_API_KEY']
+    ocr_model = job.get('ai_model', 'gemini-2.0-flash')
 
     total_questoes_job = 0
     arquivos_processados = 0
@@ -296,6 +298,28 @@ def processar_job(job, files):
         filename = file.get('filename', '')
 
         if not caminho_pdf or not os.path.exists(caminho_pdf):
+            # Tenta baixar o arquivo do WordPress remoto via HTTP
+            batch_id = job.get('batch_id_externo', '')
+            wp_site_url = WP_SITE_URL or job.get('wp_site_url', '')
+            if wp_site_url and filename:
+                download_url = f"{wp_site_url}/wp-content/uploads/pomaroli/{batch_id}/{filename}" if batch_id else f"{wp_site_url}/wp-content/uploads/pomaroli/{filename}"
+                print(f"[*] Arquivo local não encontrado. Baixando de {download_url}...")
+                try:
+                    import tempfile
+                    res = requests.get(download_url, timeout=120)
+                    if res.status_code == 200:
+                        tmp_dir = os.path.join(tempfile.gettempdir(), 'pomaroli_worker_pdfs')
+                        os.makedirs(tmp_dir, exist_ok=True)
+                        caminho_pdf = os.path.join(tmp_dir, filename)
+                        with open(caminho_pdf, 'wb') as f_out:
+                            f_out.write(res.content)
+                        print(f"[+] Download concluído: {caminho_pdf}")
+                    else:
+                        print(f"[-] Falha no download (HTTP {res.status_code})")
+                except Exception as e_dl:
+                    print(f"[-] Erro ao baixar PDF: {e_dl}")
+
+        if not caminho_pdf or not os.path.exists(caminho_pdf):
             print(f"[-] Arquivo não encontrado: {caminho_pdf}")
             wp_update_job(job_id, {
                 'file_id': file_id,
@@ -305,10 +329,9 @@ def processar_job(job, files):
             arquivos_com_erro += 1
             continue
 
-        # Marcar arquivo como processando
         wp_update_job(job_id, {
             'file_id': file_id,
-            'file_status': 'processando',
+            'file_status': 'processing',
         })
 
         total_paginas = contar_paginas_pdf(caminho_pdf)
@@ -321,10 +344,7 @@ def processar_job(job, files):
             arquivos_com_erro += 1
             continue
 
-        # Atualizar total de páginas no job
-        wp_update_job(job_id, {
-            'total_pages': total_paginas,
-        })
+        wp_update_job(job_id, {'total_pages': total_paginas})
 
         print(f"[+] Processando: {filename} ({total_paginas} páginas)")
         paginas_processadas = 0
@@ -332,19 +352,16 @@ def processar_job(job, files):
         erro_no_arquivo = False
 
         # Processar em blocos
-        for bloco_inicio in range(0, total_paginas, BLOC_SIZE):
-            bloco_fim = min(bloco_inicio + BLOC_SIZE, total_paginas)
-            bloco_num = (bloco_inicio // BLOC_SIZE) + 1
-            total_blocos = (total_paginas + BLOC_SIZE - 1) // BLOC_SIZE
+        for bloco_inicio in range(0, total_paginas, BLOCK_SIZE):
+            bloco_fim = min(bloco_inicio + BLOCK_SIZE, total_paginas)
+            bloco_num = (bloco_inicio // BLOCK_SIZE) + 1
+            total_blocos = (total_paginas + BLOCK_SIZE - 1) // BLOCK_SIZE
 
             print(f"  [BLOCO {bloco_num}/{total_blocos}] Páginas {bloco_inicio+1}-{bloco_fim}")
 
             # Extrair texto do bloco
-            if use_ocr and ocr_provedor:
-                texto = extrair_bloco_com_ocr(
-                    caminho_pdf, bloco_inicio, bloco_fim,
-                    ocr_provedor, ocr_api_key, ocr_model, None
-                )
+            if use_ocr and api_key:
+                texto = extrair_bloco_com_ocr(caminho_pdf, bloco_inicio, bloco_fim, api_key, ocr_model)
             else:
                 texto = extrair_bloco_texto(caminho_pdf, bloco_inicio, bloco_fim)
 
@@ -358,12 +375,12 @@ def processar_job(job, files):
                 paginas_processadas = bloco_fim
                 continue
 
-            # Parsear questões do bloco
+            # Parsear questões do bloco (usa extrator.py original)
             questoes = extrator.parsear_questoes_local(texto)
             print(f"  [+] {len(questoes)} questões encontradas no bloco")
 
             if questoes:
-                # Extrair imagens
+                # Extrair imagens das alternativas e enunciado
                 questoes = extrator.extrair_imagens_alternativas_pdf(caminho_pdf, questoes)
                 questoes = extrator.extrair_imagens_enunciado_pdf(caminho_pdf, questoes)
 
@@ -408,7 +425,7 @@ def processar_job(job, files):
         else:
             wp_update_job(job_id, {
                 'file_id': file_id,
-                'file_status': 'concluido',
+                'file_status': 'completed',
                 'file_progress': 100,
                 'file_questions_found': questoes_arquivo,
             })
@@ -421,7 +438,6 @@ def processar_job(job, files):
     total_files = len(files)
     all_done = (arquivos_processados + arquivos_com_erro) >= total_files
 
-    # Atualizar job
     wp_update_job(job_id, {
         'processed_files': arquivos_processados + arquivos_com_erro,
         'total_questions': total_questoes_job,
@@ -429,36 +445,34 @@ def processar_job(job, files):
 
     return all_done, total_questoes_job, arquivos_processados, arquivos_com_erro
 
-
 # =============================================================================
-# ENDPOINT /worker/run
+# EXECUÇÃO PRINCIPAL
 # =============================================================================
 
-def run_worker(token):
+def run_worker():
     """
     Execução pontual do worker.
     Verifica lock → busca job → processa bloco → salva → libera → encerra.
     """
-    # Validar token
-    if not WORKER_TOKEN:
-        return {'status': 'error', 'message': 'POMAROLI_WORKER_TOKEN não configurado.'}, 500
-
-    if token != WORKER_TOKEN:
-        return {'status': 'error', 'message': 'Token inválido.'}, 403
-
-    # Verificar configuração
     if not WP_SITE_URL:
+        print("[ERRO] WP_SITE_URL não configurado.")
         return {'status': 'error', 'message': 'WP_SITE_URL não configurado.'}, 500
+
+    if not WORKER_SECRET:
+        print("[ERRO] POMAROLI_WORKER_SECRET não configurado.")
+        return {'status': 'error', 'message': 'POMAROLI_WORKER_SECRET não configurado.'}, 500
 
     # Adquirir lock
     lock = WorkerLock()
     if not lock.adquirir():
-        return {'status': 'busy', 'message': 'Outro worker já está em execução.'}, 409
+        print("[INFO] Outro worker já está em execução. Saindo.")
+        return {'status': 'busy', 'message': 'Outro worker já está em execução.'}, 200
 
     try:
         # Buscar próximo job queued
         job = wp_get_next_job()
         if not job:
+            print("[INFO] Nenhum job na fila.")
             return {'status': 'idle', 'message': 'Nenhum job na fila.'}, 200
 
         job_id = job['id']
@@ -466,6 +480,7 @@ def run_worker(token):
         # Claim job (marcar como processing)
         claimed = wp_claim_job(job_id)
         if not claimed:
+            print(f"[ERRO] Não foi possível claim job #{job_id}.")
             return {'status': 'error', 'message': f'Não foi possível claim job #{job_id}.'}, 500
 
         print(f"[WORKER] Job #{job_id} claimado. Buscando arquivos...")
@@ -477,16 +492,15 @@ def run_worker(token):
             return {'status': 'error', 'message': 'Nenhum arquivo encontrado.'}, 404
 
         # Filtrar apenas arquivos pendentes ou com erro (para retry)
-        files_pendentes = [f for f in files if f.get('status') in ('pendente', 'erro', None)]
+        files_pendentes = [f for f in files if f.get('status') in ('pending', 'queued', 'erro', None)]
         if not files_pendentes:
-            # Todos já processados
             wp_complete_job(job_id, success=True, processed_files=len(files))
             return {'status': 'completed', 'message': 'Todos os arquivos já processados.'}, 200
 
         # Processar job
         all_done, total_questoes, proc_ok, proc_erro = processar_job(job, files_pendentes)
 
-        # Finalizar job se todos os arquivos foram processados
+        # Finalizar job
         if all_done:
             wp_complete_job(
                 job_id,
@@ -520,21 +534,11 @@ def run_worker(token):
         lock.liberar()
 
 
-# =============================================================================
-# MAIN (execução direta via cron)
-# =============================================================================
-
 if __name__ == '__main__':
-    import argparse
+    print(f"[WORKER] Iniciando Pomaroli Worker v3.2")
+    print(f"[WORKER] WP_SITE_URL: {WP_SITE_URL}")
+    print(f"[WORKER] Block size: {BLOCK_SIZE}")
 
-    parser = argparse.ArgumentParser(description='Pomaroli Worker')
-    parser.add_argument('--token', default=WORKER_TOKEN, help='Token de autenticação')
-    parser.add_argument('--url', default=WP_SITE_URL, help='URL do WordPress')
-    args = parser.parse_args()
-
-    if args.url:
-        WP_SITE_URL = args.url.rstrip('/')
-
-    resultado, status_code = run_worker(args.token)
+    resultado, status_code = run_worker()
     print(json.dumps(resultado, ensure_ascii=False, indent=2))
     sys.exit(0 if status_code in (200, 204) else 1)

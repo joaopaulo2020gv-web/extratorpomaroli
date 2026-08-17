@@ -19,7 +19,10 @@ import json
 import time
 import hmac
 import hashlib
-import fcntl
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
 import traceback
 
 import requests
@@ -106,7 +109,8 @@ class WorkerLock:
     def adquirir(self):
         try:
             self._fd = open(LOCK_FILE, 'w')
-            fcntl.flock(self._fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            if fcntl:
+                fcntl.flock(self._fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
             self._fd.write(str(os.getpid()))
             self._fd.flush()
             return True
@@ -119,7 +123,8 @@ class WorkerLock:
     def liberar(self):
         if self._fd:
             try:
-                fcntl.flock(self._fd, fcntl.LOCK_UN)
+                if fcntl:
+                    fcntl.flock(self._fd, fcntl.LOCK_UN)
                 self._fd.close()
             except Exception:
                 pass
@@ -291,6 +296,28 @@ def processar_job(job, files):
         file_index = file.get('file_index', 0)
         caminho_pdf = file.get('file_path', '')
         filename = file.get('filename', '')
+
+        if not caminho_pdf or not os.path.exists(caminho_pdf):
+            # Tenta baixar o arquivo do WordPress remoto via HTTP
+            batch_id = job.get('batch_id_externo', '')
+            wp_site_url = WP_SITE_URL or job.get('wp_site_url', '')
+            if wp_site_url and filename:
+                download_url = f"{wp_site_url}/wp-content/uploads/pomaroli/{batch_id}/{filename}" if batch_id else f"{wp_site_url}/wp-content/uploads/pomaroli/{filename}"
+                print(f"[*] Arquivo local não encontrado. Baixando de {download_url}...")
+                try:
+                    import tempfile
+                    res = requests.get(download_url, timeout=120)
+                    if res.status_code == 200:
+                        tmp_dir = os.path.join(tempfile.gettempdir(), 'pomaroli_worker_pdfs')
+                        os.makedirs(tmp_dir, exist_ok=True)
+                        caminho_pdf = os.path.join(tmp_dir, filename)
+                        with open(caminho_pdf, 'wb') as f_out:
+                            f_out.write(res.content)
+                        print(f"[+] Download concluído: {caminho_pdf}")
+                    else:
+                        print(f"[-] Falha no download (HTTP {res.status_code})")
+                except Exception as e_dl:
+                    print(f"[-] Erro ao baixar PDF: {e_dl}")
 
         if not caminho_pdf or not os.path.exists(caminho_pdf):
             print(f"[-] Arquivo não encontrado: {caminho_pdf}")
