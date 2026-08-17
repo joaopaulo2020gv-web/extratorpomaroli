@@ -64,10 +64,12 @@ LOCK_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.worker.lo
 
 def sign_request(method, endpoint, body_str=''):
     """Gera headers HMAC-SHA256 para autenticação com WordPress."""
+    cfg = load_config()
+    secret = cfg['WORKER_SECRET']
     timestamp = str(int(time.time()))
-    message = f"{timestamp}.{method.upper()}.{endpoint}.{body_str}"
+    message = f"{timestamp}.{body_str}"
     signature = hmac.new(
-        WORKER_SECRET.encode('utf-8'),
+        secret.encode('utf-8'),
         message.encode('utf-8'),
         hashlib.sha256
     ).hexdigest()
@@ -81,7 +83,9 @@ def sign_request(method, endpoint, body_str=''):
 
 def wp_request(method, endpoint, data=None, timeout=60):
     """Faz request autenticado ao WordPress REST API."""
-    url = f"{WP_SITE_URL}/wp-json/pomaroli/v1/{endpoint}"
+    cfg = load_config()
+    wp_site_url = cfg['WP_SITE_URL']
+    url = f"{wp_site_url}/wp-json/pomaroli/v1/{endpoint}"
     body_str = json.dumps(data) if data else ''
     headers = sign_request(method, endpoint, body_str)
 
@@ -194,9 +198,13 @@ def wp_complete_job(job_id, success=True, total_questions=0, processed_files=0, 
 
 def wp_get_job_files(job_id):
     """Busca os arquivos de um job."""
-    res = wp_request('GET', f'jobs/{job_id}/files')
+    res = wp_request('GET', f'worker/files/{job_id}')
     if res.status_code == 200:
-        return res.json()
+        data = res.json()
+        if isinstance(data, dict) and 'files' in data:
+            return data['files']
+        elif isinstance(data, list):
+            return data
     return []
 
 # =============================================================================
@@ -449,11 +457,15 @@ def run_worker():
     Execução pontual do worker.
     Verifica lock → busca job → processa bloco → salva → libera → encerra.
     """
-    if not WP_SITE_URL:
+    cfg = load_config()
+    wp_site_url = cfg['WP_SITE_URL']
+    worker_secret = cfg['WORKER_SECRET']
+
+    if not wp_site_url:
         print("[ERRO] WP_SITE_URL não configurado.")
         return {'status': 'error', 'message': 'WP_SITE_URL não configurado.'}, 500
 
-    if not WORKER_SECRET:
+    if not worker_secret:
         print("[ERRO] POMAROLI_WORKER_SECRET não configurado.")
         return {'status': 'error', 'message': 'POMAROLI_WORKER_SECRET não configurado.'}, 500
 
