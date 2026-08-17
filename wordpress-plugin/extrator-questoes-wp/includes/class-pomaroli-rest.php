@@ -1111,6 +1111,19 @@ class Pomaroli_REST {
             'total_files' => $files_salvos,
         ));
 
+        // Desperta o Worker em Nuvem (Render / Python API)
+        $api_url = get_option('extrator_api_url', '');
+        if (empty($api_url)) {
+            $api_url = get_option('pomaroli_api_url', '');
+        }
+        if (!empty($api_url)) {
+            wp_remote_get(rtrim($api_url, '/') . '/worker/run?token=pomaroli', array(
+                'blocking'  => false,
+                'timeout'   => 3,
+                'sslverify' => false,
+            ));
+        }
+
         // Enfileirar para processamento
         $queue = Pomaroli_Queue::get_instance();
         $queue->enqueue($job_id);
