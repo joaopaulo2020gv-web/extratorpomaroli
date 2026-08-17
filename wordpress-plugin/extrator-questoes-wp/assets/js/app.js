@@ -72,17 +72,24 @@ const PomaroliApp = (() => {
         const jId = String(job.id);
         const currentStatus = String(job.status || '').toLowerCase();
         const prevStatus = trackedJobStatuses[jId];
+        const sessionKey = `pomaroli_notified_${jId}_${currentStatus}`;
 
-        // Se já conhecíamos o job como ativo e agora ele mudou
-        if (prevStatus && ['queued', 'na_fila', 'aguardando', 'processing', 'processando', 'enviando', 'extraindo'].includes(prevStatus)) {
-            if (['completed', 'concluido'].includes(currentStatus)) {
+        const isCompleted = ['completed', 'concluido'].includes(currentStatus);
+        const isFailed = ['failed', 'erro', 'error'].includes(currentStatus);
+
+        const wasActive = prevStatus && ['queued', 'na_fila', 'aguardando', 'processing', 'processando', 'enviando', 'extraindo'].includes(prevStatus);
+
+        if ((wasActive && (isCompleted || isFailed)) || (!sessionStorage.getItem(sessionKey) && (isCompleted || isFailed))) {
+            if (isCompleted) {
                 const totalQ = job.total_questions || 0;
+                sessionStorage.setItem(sessionKey, '1');
                 playNotificationSound('success');
                 toast(`🎉 Processamento #${job.id} Concluído! ${totalQ} questões extraídas com sucesso.`, 'success');
                 showDesktopNotification('Extrator Pomaroli', `🎉 Processamento #${job.id} CONCLUÍDO! ${totalQ} questões foram extraídas com sucesso.`);
-            } else if (['failed', 'erro', 'error'].includes(currentStatus)) {
-                playNotificationSound('error');
+            } else if (isFailed) {
                 const errMsg = job.error_message || 'Falha durante o processamento do arquivo.';
+                sessionStorage.setItem(sessionKey, '1');
+                playNotificationSound('error');
                 toast(`⚠️ Processamento #${job.id} com Erro: ${errMsg}`, 'error');
                 showDesktopNotification('Extrator Pomaroli', `⚠️ Processamento #${job.id} Falhou: ${errMsg}`);
             }
@@ -1083,9 +1090,15 @@ const PomaroliApp = (() => {
         app.innerHTML = '';
         app.appendChild(t.content.cloneNode(true));
 
-        // Sidebar toggle
-        $('#btn-toggle-sidebar')?.addEventListener('click', () => {
-            $('#sidebar')?.classList.toggle('open');
+        // Sidebar toggle (recolhe no desktop, abre gaveta no mobile)
+        $('#btn-toggle-sidebar')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            const sidebar = $('#sidebar');
+            if (window.innerWidth <= 768) {
+                sidebar?.classList.toggle('open');
+            } else {
+                sidebar?.classList.toggle('collapsed');
+            }
         });
 
         // Logout
