@@ -1,5 +1,5 @@
 /* =============================================================================
-   POMAROLI DASHBOARD — Estilos globais
+   POMAROLI DASHBOARD — Estilos do SPA
    ============================================================================= */
 
 :root {
@@ -31,18 +31,39 @@
     --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { height: 100%; }
-body {
+#pomaroli-app *,
+#pomaroli-app *::before,
+#pomaroli-app *::after,
+.login-screen *,
+.login-screen *::before,
+.login-screen *::after,
+.app-layout *,
+.app-layout *::before,
+.app-layout *::after {
+    box-sizing: border-box;
+}
+
+#pomaroli-app,
+.login-screen,
+.app-layout {
     font-family: var(--font);
-    background: var(--bg-primary);
     color: var(--text-primary);
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
-    overflow: hidden;
 }
-a { color: var(--accent); text-decoration: none; }
-a:hover { color: var(--accent-hover); }
+
+#pomaroli-app a,
+.login-screen a,
+.app-layout a {
+    color: var(--accent);
+    text-decoration: none;
+}
+
+#pomaroli-app a:hover,
+.login-screen a:hover,
+.app-layout a:hover {
+    color: var(--accent-hover);
+}
 
 /* =============================================================================
    LOGIN SCREEN

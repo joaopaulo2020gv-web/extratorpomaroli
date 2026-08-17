@@ -3,7 +3,7 @@
  * Plugin Name: Extrator de Questoes Pomaroli
  * Plugin URI: https://extrator.pomaroli.com.br
  * Description: Plugin oficial Extrator de Questoes Pomaroli para extracao automatizada de questoes de concursos em lote (PDFs multiplas) com autocorrecao via Google Gemini IA e integracao com o banco do WordPress. Inclui aplicativo visual 100% Tela Cheia com login integrado.
- * Version: 3.3.8
+ * Version: 3.3.9
  * Author: Equipe Pomaroli
  * Text Domain: extrator-questoes-wp
  */
@@ -296,9 +296,8 @@ class ExtratorQuestoesWP {
             return;
         }
 
-        wp_enqueue_style('pomaroli-dashboard', plugins_url('assets/css/dashboard.css', __FILE__), array(), '3.3.4');
-        wp_enqueue_script('pomaroli-api', plugins_url('assets/js/api.js', __FILE__), array(), '3.3.4', true);
-        wp_enqueue_script('pomaroli-app', plugins_url('assets/js/app.js', __FILE__), array('pomaroli-api'), '3.3.4', true);
+        $plugin_data = get_file_data(__FILE__, array('Version' => 'Version'));
+        $ver = isset($plugin_data['Version']) ? $plugin_data['Version'] : '3.3.9';
 
         $app_config = array(
             'restUrl'   => rest_url('pomaroli/v1/'),
@@ -306,11 +305,11 @@ class ExtratorQuestoesWP {
             'ajaxUrl'   => admin_url('admin-ajax.php'),
             'userId'    => intval(get_current_user_id()),
         );
-        wp_localize_script('pomaroli-api', 'APP_CONFIG', $app_config);
 
-        wp_enqueue_style('extrator-admin-css', plugins_url('style.css', __FILE__), array(), '3.3.4');
-        wp_enqueue_script('extrator-admin-js', plugins_url('admin.js', __FILE__), array('jquery'), '3.3.4', true);
+        wp_enqueue_style('extrator-admin-css', plugins_url('style.css', __FILE__), array(), $ver);
+        wp_enqueue_script('extrator-admin-js', plugins_url('admin.js', __FILE__), array('jquery'), $ver, true);
 
+        wp_localize_script('extrator-admin-js', 'APP_CONFIG', $app_config);
         wp_localize_script('extrator-admin-js', 'extratorWPConfig', array(
             'ajaxurl'   => admin_url('admin-ajax.php'),
             'nonce'     => wp_create_nonce('extrator_nonce'),
@@ -1095,7 +1094,7 @@ class ExtratorQuestoesWP {
         ?>
         <div class="wrap extrator-wrap">
             <div class="extrator-header">
-                <h1>Extrator de Questoes Pomaroli <span class="badge-v2">v3.3.3 WordPress + Python</span></h1>
+                <h1>Extrator de Questoes Pomaroli <span class="badge-v2">v3.3.9 WordPress + Python</span></h1>
                 <p>Envie PDFs. O WordPress cria jobs persistentes. O Python (via cPanel) processa em segundo plano. Fechar o navegador nao interrompe nada.</p>
             </div>
 
