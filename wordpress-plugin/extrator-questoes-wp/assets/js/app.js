@@ -11,16 +11,98 @@ const PomaroliApp = (() => {
     let pollTimers = {};
 
     // =========================================================================
-    // UTILS
+    // UTILS & NOTIFICATIONS
     // =========================================================================
+
+    const trackedJobStatuses = {};
+
+    function playNotificationSound(type = 'success') {
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const now = ctx.currentTime;
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+
+            if (type === 'success') {
+                // Toque alegre de sucesso (dois tons: C5 -> G5)
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(523.25, now);
+                osc.frequency.setValueAtTime(783.99, now + 0.12);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+                osc.start(now);
+                osc.stop(now + 0.5);
+            } else {
+                // Alerta de falha (dois tons graves)
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(320, now);
+                osc.frequency.setValueAtTime(220, now + 0.15);
+                gain.gain.setValueAtTime(0.25, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+                osc.start(now);
+                osc.stop(now + 0.6);
+            }
+        } catch (e) {
+            // Web Audio não permitido ou sem suporte
+        }
+    }
+
+    function requestNotificationPermission() {
+        if ('Notification' in window && Notification.permission === 'default') {
+            try {
+                Notification.requestPermission();
+            } catch (e) {}
+        }
+    }
+
+    function showDesktopNotification(title, body) {
+        if ('Notification' in window && Notification.permission === 'granted') {
+            try {
+                new Notification(title, {
+                    body: body,
+                    icon: 'https://extrator.pomaroli.com.br/wp-includes/images/w-logo-blue.png'
+                });
+            } catch(e) {}
+        }
+    }
+
+    function checkJobStatusTransition(job) {
+        const jId = String(job.id);
+        const currentStatus = String(job.status || '').toLowerCase();
+        const prevStatus = trackedJobStatuses[jId];
+
+        // Se já conhecíamos o job como ativo e agora ele mudou
+        if (prevStatus && ['queued', 'na_fila', 'aguardando', 'processing', 'processando', 'enviando', 'extraindo'].includes(prevStatus)) {
+            if (['completed', 'concluido'].includes(currentStatus)) {
+                const totalQ = job.total_questions || 0;
+                playNotificationSound('success');
+                toast(`🎉 Processamento #${job.id} Concluído! ${totalQ} questões extraídas com sucesso.`, 'success');
+                showDesktopNotification('Extrator Pomaroli', `🎉 Processamento #${job.id} CONCLUÍDO! ${totalQ} questões foram extraídas com sucesso.`);
+            } else if (['failed', 'erro', 'error'].includes(currentStatus)) {
+                playNotificationSound('error');
+                const errMsg = job.error_message || 'Falha durante o processamento do arquivo.';
+                toast(`⚠️ Processamento #${job.id} com Erro: ${errMsg}`, 'error');
+                showDesktopNotification('Extrator Pomaroli', `⚠️ Processamento #${job.id} Falhou: ${errMsg}`);
+            }
+        }
+
+        // Atualiza estado conhecido
+        trackedJobStatuses[jId] = currentStatus;
+    }
 
     function toast(msg, type = 'info') {
         const c = $('#toast-container');
+        if (!c) return;
         const el = document.createElement('div');
         el.className = `toast toast-${type}`;
-        el.innerHTML = `<i class="fa-solid fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}"></i> ${msg}`;
+        el.style.boxShadow = '0 8px 24px rgba(0,0,0,0.4)';
+        el.style.fontSize = '14px';
+        el.style.padding = '12px 18px';
+        el.innerHTML = `<i class="fa-solid fa-${type === 'success' ? 'circle-check' : type === 'error' ? 'triangle-exclamation' : 'circle-info'}"></i> <span>${msg}</span>`;
         c.appendChild(el);
-        setTimeout(() => el.remove(), 4000);
+        setTimeout(() => el.remove(), 6000);
     }
 
     function confirmModal(message) {
@@ -217,6 +299,7 @@ const PomaroliApp = (() => {
                 if (!data.items || data.items.length === 0) {
                     tbody.innerHTML = '<tr><td colspan="7" class="text-muted text-center">Nenhum processamento encontrado. Clique em "Novo Upload" para começar.</td></tr>';
                 } else {
+                    data.items.forEach(j => checkJobStatusTransition(j));
                     tbody.innerHTML = data.items.map(j => {
                         const isFailed = j.status === 'failed' || j.status === 'erro' || j.status === 'error';
                         const isProcessing = ['queued', 'na_fila', 'processing', 'processando', 'enviando', 'extraindo'].includes(j.status);
@@ -864,6 +947,7 @@ const PomaroliApp = (() => {
     let uploadFiles = [];
 
     function openUploadModal() {
+        requestNotificationPermission();
         const existing = $('#upload-modal');
         if (existing) existing.remove();
 

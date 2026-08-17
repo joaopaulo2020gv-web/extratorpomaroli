@@ -45,9 +45,9 @@ def load_config():
             config = json.load(f)
 
     return {
-        'WP_SITE_URL': os.environ.get('WP_SITE_URL', config.get('wordpress_url', '')).rstrip('/'),
-        'WORKER_SECRET': os.environ.get('POMAROLI_WORKER_SECRET', config.get('worker_secret', '')),
-        'GEMINI_API_KEY': os.environ.get('GEMINI_API_KEY', config.get('gemini_api_key', '')),
+        'WP_SITE_URL': (os.environ.get('WP_SITE_URL') or config.get('wordpress_url') or 'https://extrator.pomaroli.com.br').rstrip('/'),
+        'WORKER_SECRET': os.environ.get('POMAROLI_WORKER_SECRET') or config.get('worker_secret') or 'PomaroliWorker_2026_X7k9P2m4',
+        'GEMINI_API_KEY': os.environ.get('GEMINI_API_KEY') or config.get('gemini_api_key') or '',
         'BLOCK_SIZE': int(os.environ.get('BLOCK_SIZE', config.get('block_size', 20))),
     }
 
